@@ -1,0 +1,52 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CuyZ\Valinor\Mapper\Printer;
+
+use CuyZ\Valinor\Mapper\Tree\Node;
+
+final class TmpCopyNode
+{
+    public function toHtml(Node $node): string
+    {
+        $zzz = $this->zzz($node);
+
+        // @todo only apply if text/int/float (not useful for bool)
+        $todo .= '<button class="vlnr-copy-clipboard" onclick="navigator.clipboard.writeText(\'' . $node->value() . '\');"></button>';
+
+        return '<div class="vlnr-tree" onmouseover="if (window.isSecureContext) this.classList.add(\'vlnr-secure-context\')">' . $zzz . '</div>';
+    }
+
+    private function css()
+    {
+        return <<<CSS
+        .vlnr-tree:not(.vlnr-secure-context) .vlnr-copy-clipboard { display: none; }
+        .vlnr-tree .vlnr-summary:not(:hover) .vlnr-copy-clipboard { display: none; }
+        .vlnr-tree .vlnr-copy-clipboard:hover { cursor: pointer; }
+        .vlnr-tree .vlnr-copy-clipboard {
+            --url-copy-clipboard: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="stroke: black; stroke-width: 2"><line x1="0" y1="1" x2="18" y2="1"/><line x1="1" y1="0" x2="1" y2="18"/><line x1="0" y1="18" x2="6" y2="18"/><line x1="18" y1="0" x2="18" y2="6"/><line x1="6" y1="6" x2="24" y2="6"/><line x1="6" y1="23" x2="24" y2="23"/><line x1="6" y1="5" x2="6" y2="24"/><line x1="23" y1="5" x2="23" y2="24"/></svg>');
+
+            display: inline;
+            position: absolute;
+            left: 1em;
+
+            width: 10px;
+            height: 10px;
+            background-image: var(--url-copy-clipboard);
+            background-size: contain;
+            background-repeat: no-repeat;
+            /*mask-image: var(--url-copy-clipboard);*/
+            /*-webkit-mask-image: var(--url-copy-clipboard);*/
+            /*mask-size: 100%;*/
+            /*-webkit-mask-size: 100%;*/
+            /*mask-repeat: no-repeat;*/
+            /*-webkit-mask-repeat: no-repeat;*/
+            background-color: rgba(0, 0, 0, 10%);
+
+            border: thin solid var(--border-color);
+            border-radius: 10%;
+        }
+       CSS;
+    }
+}

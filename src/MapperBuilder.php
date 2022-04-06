@@ -7,6 +7,7 @@ namespace CuyZ\Valinor;
 use CuyZ\Valinor\Library\Container;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Tree\Node;
+use CuyZ\Valinor\Mapper\Tree\NodeMapper;
 use CuyZ\Valinor\Mapper\TreeMapper;
 
 use function is_callable;
@@ -221,7 +222,17 @@ final class MapperBuilder
 
     public function mapper(): TreeMapper
     {
-        return ($this->container ??= new Container($this->settings))->treeMapper();
+        return $this->container()->treeMapper();
+    }
+
+    public function node(): NodeMapper
+    {
+        return $this->container()->nodeMapper();
+    }
+
+    private function container(): Container
+    {
+        return $this->container ??= new Container($this->settings);
     }
 
     public function __clone()

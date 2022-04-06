@@ -23,6 +23,7 @@ use CuyZ\Valinor\Definition\Repository\Reflection\DoctrineAnnotationsRepository;
 use CuyZ\Valinor\Definition\Repository\Reflection\NativeAttributesRepository;
 use CuyZ\Valinor\Definition\Repository\Reflection\ReflectionClassDefinitionRepository;
 use CuyZ\Valinor\Definition\Repository\Reflection\ReflectionFunctionDefinitionRepository;
+use CuyZ\Valinor\Mapper\NodeTreeMapper;
 use CuyZ\Valinor\Mapper\Object\Factory\AttributeObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\ConstructorObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\DateTimeObjectBuilderFactory;
@@ -45,10 +46,11 @@ use CuyZ\Valinor\Mapper\Tree\Builder\ShellVisitorNodeBuilder;
 use CuyZ\Valinor\Mapper\Tree\Builder\UnionNodeBuilder;
 use CuyZ\Valinor\Mapper\Tree\Builder\ValueAlteringNodeBuilder;
 use CuyZ\Valinor\Mapper\Tree\Builder\VisitorNodeBuilder;
+use CuyZ\Valinor\Mapper\Tree\NodeMapper;
+use CuyZ\Valinor\Mapper\Tree\TypedNodeMapper;
 use CuyZ\Valinor\Mapper\Tree\Visitor\AttributeShellVisitor;
 use CuyZ\Valinor\Mapper\Tree\Visitor\ShellVisitor;
 use CuyZ\Valinor\Mapper\TreeMapper;
-use CuyZ\Valinor\Mapper\TreeMapperContainer;
 use CuyZ\Valinor\Type\Parser\CachedParser;
 use CuyZ\Valinor\Type\Parser\Factory\LexingTypeParserFactory;
 use CuyZ\Valinor\Type\Parser\Factory\Specifications\HandleClassGenericSpecification;
@@ -88,10 +90,16 @@ final class Container
     public function __construct(Settings $settings)
     {
         $this->factories = [
-            TreeMapper::class => function (): TreeMapper {
-                return new TreeMapperContainer(
+            NodeMapper::class => function (): NodeMapper {
+                return new TypedNodeMapper(
                     $this->get(TypeParser::class),
                     new RootNodeBuilder($this->get(NodeBuilder::class))
+                );
+            },
+
+            TreeMapper::class => function (): TreeMapper {
+                return new NodeTreeMapper(
+                    $this->get(NodeMapper::class),
                 );
             },
 
@@ -235,6 +243,11 @@ final class Container
     public function treeMapper(): TreeMapper
     {
         return $this->get(TreeMapper::class);
+    }
+
+    public function nodeMapper(): NodeMapper
+    {
+        return $this->get(NodeMapper::class);
     }
 
     /**

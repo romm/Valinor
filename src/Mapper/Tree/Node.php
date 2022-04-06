@@ -21,6 +21,8 @@ final class Node
     /** @var mixed */
     private $value;
 
+    private bool $isLeaf = false;
+
     /** @var array<Node> */
     private array $children = [];
 
@@ -44,6 +46,7 @@ final class Node
     public static function leaf(Shell $shell, $value): self
     {
         $instance = new self($shell, $value);
+        $instance->isLeaf = true;
         $instance->check();
 
         return $instance;
@@ -77,7 +80,10 @@ final class Node
      */
     public static function error(Shell $shell, Throwable $message): self
     {
-        return (new self($shell, null))->withMessage($message);
+        $instance = new self($shell, null);
+        $instance->isLeaf = true;
+
+        return $instance->withMessage($message);
     }
 
     public function name(): string
@@ -88,6 +94,11 @@ final class Node
     public function isRoot(): bool
     {
         return $this->shell->isRoot();
+    }
+
+    public function isLeaf(): bool
+    {
+        return $this->isLeaf;
     }
 
     public function path(): string
