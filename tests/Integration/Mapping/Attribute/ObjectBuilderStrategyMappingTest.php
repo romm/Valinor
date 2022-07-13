@@ -6,7 +6,6 @@ namespace CuyZ\Valinor\Tests\Integration\Mapping\Attribute;
 
 use Attribute;
 use CuyZ\Valinor\Attribute\StaticMethodConstructor;
-use CuyZ\Valinor\Definition\ClassDefinition;
 use CuyZ\Valinor\Mapper\MappingError;
 use CuyZ\Valinor\Mapper\Object\Exception\TooManyObjectBuilderFactoryAttributes;
 use CuyZ\Valinor\Mapper\Object\Factory\ObjectBuilderFactory;
@@ -14,6 +13,7 @@ use CuyZ\Valinor\MapperBuilder;
 use CuyZ\Valinor\Tests\Fake\Mapper\Object\FakeObjectBuilder;
 use CuyZ\Valinor\Tests\Fake\Mapper\Tree\Message\FakeErrorMessage;
 use CuyZ\Valinor\Tests\Integration\IntegrationTest;
+use CuyZ\Valinor\Type\Types\ClassType;
 
 final class ObjectBuilderStrategyMappingTest extends IntegrationTest
 {
@@ -72,7 +72,7 @@ final class ForeignAttribute
 #[Attribute(Attribute::TARGET_CLASS | Attribute::IS_REPEATABLE)]
 final class ObjectBuilderStrategyAttribute implements ObjectBuilderFactory
 {
-    public function for(ClassDefinition $class): iterable
+    public function for(ClassType $type): iterable
     {
         return [new FakeObjectBuilder()];
     }

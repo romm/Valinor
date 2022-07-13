@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Mapper\Object\Factory;
 
-use CuyZ\Valinor\Definition\ClassDefinition;
 use CuyZ\Valinor\Mapper\Object\Exception\PermissiveTypeNotAllowed;
+use CuyZ\Valinor\Type\Types\ClassType;
 use CuyZ\Valinor\Utility\PermissiveTypeFound;
 use CuyZ\Valinor\Utility\TypeHelper;
 
@@ -19,9 +19,9 @@ final class StrictTypesObjectBuilderFactory implements ObjectBuilderFactory
         $this->delegate = $delegate;
     }
 
-    public function for(ClassDefinition $class): iterable
+    public function for(ClassType $type): iterable
     {
-        $builders = $this->delegate->for($class);
+        $builders = $this->delegate->for($type);
 
         foreach ($builders as $builder) {
             $arguments = $builder->describeArguments();

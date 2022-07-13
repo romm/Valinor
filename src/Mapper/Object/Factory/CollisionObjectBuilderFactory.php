@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Mapper\Object\Factory;
 
-use CuyZ\Valinor\Definition\ClassDefinition;
 use CuyZ\Valinor\Mapper\Object\Exception\ObjectBuildersCollision;
+use CuyZ\Valinor\Type\Types\ClassType;
 
 use function array_shift;
 use function count;
@@ -22,9 +22,9 @@ final class CollisionObjectBuilderFactory implements ObjectBuilderFactory
         $this->delegate = $delegate;
     }
 
-    public function for(ClassDefinition $class): iterable
+    public function for(ClassType $type): iterable
     {
-        $builders = $this->delegate->for($class);
+        $builders = $this->delegate->for($type);
 
         $sortedBuilders = [];
 
@@ -38,7 +38,7 @@ final class CollisionObjectBuilderFactory implements ObjectBuilderFactory
             }
 
             if ($argumentsCount <= 1) {
-                throw new ObjectBuildersCollision($class, ...$buildersList);
+                throw new ObjectBuildersCollision($type, ...$buildersList);
             }
 
             // @phpstan-ignore-next-line // false positive
@@ -63,7 +63,7 @@ final class CollisionObjectBuilderFactory implements ObjectBuilderFactory
                     }
 
                     if ($collisions >= count($arguments)) {
-                        throw new ObjectBuildersCollision($class, $current, $other);
+                        throw new ObjectBuildersCollision($type, $current, $other);
                     }
                 } while (next($buildersList));
             }

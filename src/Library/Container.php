@@ -109,7 +109,6 @@ final class Container
 
                 $builder = new ClassNodeBuilder(
                     $builder,
-                    $this->get(ClassDefinitionRepository::class),
                     $this->get(ObjectBuilderFactory::class),
                     $settings->flexible
                 );
@@ -117,7 +116,6 @@ final class Container
                 $builder = new InterfaceNodeBuilder(
                     $builder,
                     $this->get(ObjectImplementations::class),
-                    $this->get(ClassDefinitionRepository::class),
                     $this->get(ObjectBuilderFactory::class),
                     $settings->flexible
                 );
@@ -151,11 +149,16 @@ final class Container
                     $settings->customConstructors
                 );
 
-                $factory = new ReflectionObjectBuilderFactory();
-                $factory = new ConstructorObjectBuilderFactory($factory, $settings->nativeConstructors, $constructors);
+                $factory = new ReflectionObjectBuilderFactory($this->get(ClassDefinitionRepository::class));
+                $factory = new ConstructorObjectBuilderFactory(
+                    $factory,
+                    $settings->nativeConstructors,
+                    $constructors,
+                    $this->get(ClassDefinitionRepository::class)
+                );
                 $factory = new DateTimeObjectBuilderFactory($factory, $constructors);
-                $factory = new AttributeObjectBuilderFactory($factory);
-                $factory =  new CollisionObjectBuilderFactory($factory);
+                $factory = new AttributeObjectBuilderFactory($factory, $this->get(ClassDefinitionRepository::class));
+                $factory = new CollisionObjectBuilderFactory($factory);
 
                 if (! $settings->flexible) {
                     $factory = new StrictTypesObjectBuilderFactory($factory);
@@ -214,7 +217,6 @@ final class Container
             RecursiveCacheWarmupService::class => fn () => new RecursiveCacheWarmupService(
                 $this->get(TypeParser::class),
                 $this->get(ObjectImplementations::class),
-                $this->get(ClassDefinitionRepository::class),
                 $this->get(ObjectBuilderFactory::class)
             ),
 

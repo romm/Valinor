@@ -6,10 +6,12 @@ namespace CuyZ\Valinor\Mapper\Object\Factory;
 
 use CuyZ\Valinor\Definition\ClassDefinition;
 use CuyZ\Valinor\Definition\FunctionsContainer;
+use CuyZ\Valinor\Definition\Repository\ClassDefinitionRepository;
 use CuyZ\Valinor\Mapper\Object\Exception\CannotInstantiateObject;
 use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;
 use CuyZ\Valinor\Mapper\Object\MethodObjectBuilder;
 use CuyZ\Valinor\Mapper\Object\ObjectBuilder;
+use CuyZ\Valinor\Type\Types\ClassType;
 
 use function array_key_exists;
 use function array_unshift;
@@ -28,21 +30,27 @@ final class ConstructorObjectBuilderFactory implements ObjectBuilderFactory
     /** @var array<string, ObjectBuilder[]> */
     private array $builders = [];
 
+    private ClassDefinitionRepository $classDefinitionRepository;
+
     /**
      * @param array<class-string, null> $nativeConstructors
      */
     public function __construct(
         ObjectBuilderFactory $delegate,
         array $nativeConstructors,
-        FunctionsContainer $constructors
+        FunctionsContainer $constructors,
+        ClassDefinitionRepository $classDefinitionRepository
     ) {
         $this->delegate = $delegate;
         $this->nativeConstructors = $nativeConstructors;
         $this->constructors = $constructors;
+        $this->classDefinitionRepository = $classDefinitionRepository;
     }
 
-    public function for(ClassDefinition $class): iterable
+    public function for(ClassType $type): iterable
     {
+        $class = $this->classDefinitionRepository->for($type);
+
         $builders = $this->listBuilders($class);
 
         if (count($builders) === 0) {
@@ -50,7 +58,7 @@ final class ConstructorObjectBuilderFactory implements ObjectBuilderFactory
                 throw new CannotInstantiateObject($class);
             }
 
-            return $this->delegate->for($class);
+            return $this->delegate->for($type);
         }
 
         return $builders;

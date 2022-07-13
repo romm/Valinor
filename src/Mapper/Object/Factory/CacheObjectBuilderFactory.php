@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Mapper\Object\Factory;
 
-use CuyZ\Valinor\Definition\ClassDefinition;
 use CuyZ\Valinor\Mapper\Object\ObjectBuilder;
+use CuyZ\Valinor\Type\Types\ClassType;
 use Psr\SimpleCache\CacheInterface;
 
 /** @internal */
@@ -25,9 +25,9 @@ final class CacheObjectBuilderFactory implements ObjectBuilderFactory
         $this->cache = $cache;
     }
 
-    public function for(ClassDefinition $class): iterable
+    public function for(ClassType $type): iterable
     {
-        $signature = $class->type()->toString();
+        $signature = $type->toString();
 
         if ($this->cache->has($signature)) {
             $entry = $this->cache->get($signature);
@@ -37,7 +37,7 @@ final class CacheObjectBuilderFactory implements ObjectBuilderFactory
             }
         }
 
-        $builders = $this->delegate->for($class);
+        $builders = $this->delegate->for($type);
 
         $this->cache->set($signature, $builders);
 

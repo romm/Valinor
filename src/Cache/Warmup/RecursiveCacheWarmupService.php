@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Cache\Warmup;
 
 use CuyZ\Valinor\Cache\Exception\InvalidSignatureToWarmup;
-use CuyZ\Valinor\Definition\Repository\ClassDefinitionRepository;
 use CuyZ\Valinor\Mapper\Object\Factory\ObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Tree\Builder\ObjectImplementations;
 use CuyZ\Valinor\Type\CompositeType;
@@ -24,8 +23,6 @@ final class RecursiveCacheWarmupService
 
     private ObjectImplementations $implementations;
 
-    private ClassDefinitionRepository $classDefinitionRepository;
-
     private ObjectBuilderFactory $objectBuilderFactory;
 
     /** @var list<class-string> */
@@ -34,12 +31,10 @@ final class RecursiveCacheWarmupService
     public function __construct(
         TypeParser $parser,
         ObjectImplementations $implementations,
-        ClassDefinitionRepository $classDefinitionRepository,
         ObjectBuilderFactory $objectBuilderFactory
     ) {
         $this->parser = $parser;
         $this->implementations = $implementations;
-        $this->classDefinitionRepository = $classDefinitionRepository;
         $this->objectBuilderFactory = $objectBuilderFactory;
     }
 
@@ -90,8 +85,7 @@ final class RecursiveCacheWarmupService
 
         $this->classesWarmedUp[] = $type->className();
 
-        $classDefinition = $this->classDefinitionRepository->for($type);
-        $objectBuilders = $this->objectBuilderFactory->for($classDefinition);
+        $objectBuilders = $this->objectBuilderFactory->for($type);
 
         foreach ($objectBuilders as $builder) {
             foreach ($builder->describeArguments() as $argument) {

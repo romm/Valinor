@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Mapper\Tree\Builder;
 
-use CuyZ\Valinor\Definition\Repository\ClassDefinitionRepository;
 use CuyZ\Valinor\Mapper\Object\Arguments;
 use CuyZ\Valinor\Mapper\Object\Factory\ObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\FilledArguments;
@@ -23,8 +22,6 @@ final class InterfaceNodeBuilder implements NodeBuilder
 
     private ObjectImplementations $implementations;
 
-    private ClassDefinitionRepository $classDefinitionRepository;
-
     private ObjectBuilderFactory $objectBuilderFactory;
 
     private bool $flexible;
@@ -32,13 +29,11 @@ final class InterfaceNodeBuilder implements NodeBuilder
     public function __construct(
         NodeBuilder $delegate,
         ObjectImplementations $implementations,
-        ClassDefinitionRepository $classDefinitionRepository,
         ObjectBuilderFactory $objectBuilderFactory,
         bool $flexible
     ) {
         $this->delegate = $delegate;
         $this->implementations = $implementations;
-        $this->classDefinitionRepository = $classDefinitionRepository;
         $this->objectBuilderFactory = $objectBuilderFactory;
         $this->flexible = $flexible;
     }
@@ -112,8 +107,7 @@ final class InterfaceNodeBuilder implements NodeBuilder
             return $shell;
         }
 
-        $class = $this->classDefinitionRepository->for($classType);
-        $builders = $this->objectBuilderFactory->for($class);
+        $builders = $this->objectBuilderFactory->for($classType);
 
         foreach ($arguments as $argument) {
             $name = $argument->name();

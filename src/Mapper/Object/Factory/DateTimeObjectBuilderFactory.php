@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Mapper\Object\Factory;
 
-use CuyZ\Valinor\Definition\ClassDefinition;
 use CuyZ\Valinor\Definition\FunctionsContainer;
 use CuyZ\Valinor\Mapper\Object\DateTimeObjectBuilder;
 use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;
 use CuyZ\Valinor\Mapper\Object\ObjectBuilder;
-use CuyZ\Valinor\Type\Type;
+use CuyZ\Valinor\Type\Types\ClassType;
 use DateTimeInterface;
 
 use function count;
@@ -31,22 +30,22 @@ final class DateTimeObjectBuilderFactory implements ObjectBuilderFactory
         $this->functions = $functions;
     }
 
-    public function for(ClassDefinition $class): iterable
+    public function for(ClassType $type): iterable
     {
-        $className = $class->name();
+        $className = $type->className();
 
         if (! is_a($className, DateTimeInterface::class, true)) {
-            return $this->delegate->for($class);
+            return $this->delegate->for($type);
         }
 
-        return $this->builders($class->type(), $className);
+        return $this->builders($type, $className);
     }
 
     /**
      * @param class-string<DateTimeInterface> $className
      * @return list<ObjectBuilder>
      */
-    private function builders(Type $type, string $className): array
+    private function builders(ClassType $type, string $className): array
     {
         $key = $type->toString();
 

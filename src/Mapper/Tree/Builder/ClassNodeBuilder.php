@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Mapper\Tree\Builder;
 
-use CuyZ\Valinor\Definition\Repository\ClassDefinitionRepository;
 use CuyZ\Valinor\Mapper\Object\Factory\ObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\FilledArguments;
 use CuyZ\Valinor\Mapper\Object\FilteredObjectBuilder;
@@ -22,20 +21,13 @@ final class ClassNodeBuilder implements NodeBuilder
 {
     private NodeBuilder $delegate;
 
-    private ClassDefinitionRepository $classDefinitionRepository;
-
     private ObjectBuilderFactory $objectBuilderFactory;
 
     private bool $flexible;
 
-    public function __construct(
-        NodeBuilder $delegate,
-        ClassDefinitionRepository $classDefinitionRepository,
-        ObjectBuilderFactory $objectBuilderFactory,
-        bool $flexible
-    ) {
+    public function __construct(NodeBuilder $delegate, ObjectBuilderFactory $objectBuilderFactory, bool $flexible)
+    {
         $this->delegate = $delegate;
-        $this->classDefinitionRepository = $classDefinitionRepository;
         $this->objectBuilderFactory = $objectBuilderFactory;
         $this->flexible = $flexible;
     }
@@ -99,9 +91,7 @@ final class ClassNodeBuilder implements NodeBuilder
         $builders = [];
 
         foreach ($classTypes as $classType) {
-            $class = $this->classDefinitionRepository->for($classType);
-
-            $builders = [...$builders, ...$this->objectBuilderFactory->for($class)];
+            $builders = [...$builders, ...$this->objectBuilderFactory->for($classType)];
         }
 
         return new FilteredObjectBuilder($shell->value(), ...$builders);
