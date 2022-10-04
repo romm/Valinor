@@ -7,6 +7,7 @@ namespace CuyZ\Valinor\Mapper\Tree\Builder;
 use CuyZ\Valinor\Mapper\Tree\Exception\NoCasterForType;
 use CuyZ\Valinor\Mapper\Tree\Shell;
 
+// @todo rename `AggregateNodeBuilder`?
 /** @internal */
 final class CasterNodeBuilder implements NodeBuilder
 {

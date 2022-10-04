@@ -6,6 +6,7 @@ namespace CuyZ\Valinor\Mapper\Tree\Visitor;
 
 use CuyZ\Valinor\Mapper\Tree\Shell;
 
+// @todo delete or mark as deprecated?
 /** @internal */
 interface ShellVisitor
 {

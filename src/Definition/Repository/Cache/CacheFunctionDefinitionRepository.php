@@ -34,6 +34,7 @@ final class CacheFunctionDefinitionRepository implements FunctionDefinitionRepos
         if ($this->cache->has($key)) {
             $entry = $this->cache->get($key);
 
+            // @todo exception
             if ($entry) {
                 return $entry;
             }

@@ -52,6 +52,10 @@ final class ValueDumper
         }
 
         if (is_string($value)) {
+            if ($value === '') {
+                return 'string (empty)';
+            }
+
             $value = self::crop($value);
 
             if (str_contains($value, "'") && str_contains($value, '"')) {

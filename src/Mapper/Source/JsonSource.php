@@ -29,6 +29,7 @@ final class JsonSource implements IteratorAggregate
     public function __construct(string $jsonSource)
     {
         // @PHP8.0 ext-json always bundled, see https://php.watch/versions/8.0/ext-json
+        // @todo inline comment
         /** @infection-ignore-all */
         // @codeCoverageIgnoreStart
         if (! function_exists('json_decode')) {

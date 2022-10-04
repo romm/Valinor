@@ -92,6 +92,8 @@ final class TreeNode
 
     /**
      * @param mixed $value
+     *
+     * @todo inside the check, instead of adding a message, throw an exception
      */
     public function withValue($value): self
     {

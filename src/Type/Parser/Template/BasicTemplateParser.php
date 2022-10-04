@@ -20,6 +20,7 @@ final class BasicTemplateParser implements TemplateParser
     {
         $templates = [];
 
+        // @todo use Reflection::TYPE_EXPRESSION?
         preg_match_all("/@(phpstan-|psalm-)?template\s+(\w+)(\s+of\s+([\w\s?|&<>'\",-:\\\\\[\]{}]+))?/", $source, $raw);
 
         /** @var string[] $list */

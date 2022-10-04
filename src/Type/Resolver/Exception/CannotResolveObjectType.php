@@ -6,6 +6,7 @@ namespace CuyZ\Valinor\Type\Resolver\Exception;
 
 use RuntimeException;
 
+// @todo move namespace
 /** @internal */
 final class CannotResolveObjectType extends RuntimeException
 {

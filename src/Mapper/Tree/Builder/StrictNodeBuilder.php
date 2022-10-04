@@ -24,6 +24,7 @@ final class StrictNodeBuilder implements NodeBuilder
     public function build(Shell $shell, RootNodeBuilder $rootBuilder): TreeNode
     {
         if (! $this->flexible) {
+            // @todo cache
             TypeHelper::checkPermissiveType($shell->type());
         }
 

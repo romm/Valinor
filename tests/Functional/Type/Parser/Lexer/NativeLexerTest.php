@@ -616,6 +616,7 @@ final class NativeLexerTest extends TestCase
             'type' => NonEmptyListType::class,
         ];
 
+        // @todo no space in key? `array{foo bar: string}` => invalid
         yield 'Shaped array' => [
             'raw' => 'array{foo: string}',
             'transformed' => 'array{foo: string}',
