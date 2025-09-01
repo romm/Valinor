@@ -279,6 +279,16 @@ final class Container
         return $this->get(RecursiveCacheWarmupService::class);
     }
 
+    public function functionDefinitionRepository(): FunctionDefinitionRepository
+    {
+        return $this->get(FunctionDefinitionRepository::class);
+    }
+
+    public function rootNodeBuilder(): RootNodeBuilder
+    {
+        return $this->get(RootNodeBuilder::class);
+    }
+
     /**
      * @template T of object
      * @param class-string<T> $name

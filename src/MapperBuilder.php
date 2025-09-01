@@ -8,8 +8,10 @@ use CuyZ\Valinor\Cache\Cache;
 use CuyZ\Valinor\Library\Container;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\ArgumentsMapper;
+use CuyZ\Valinor\Mapper\MappedArgumentsRequestHandler;
 use CuyZ\Valinor\Mapper\Tree\Message\ErrorMessage;
 use CuyZ\Valinor\Mapper\TreeMapper;
+use Psr\Http\Server\RequestHandlerInterface;
 use Throwable;
 
 use function array_unique;
@@ -651,6 +653,16 @@ final class MapperBuilder
     public function argumentsMapper(): ArgumentsMapper
     {
         return $this->container()->argumentsMapper();
+    }
+
+    public function requestHandlerFor(callable $controller): RequestHandlerInterface
+    {
+        return new MappedArgumentsRequestHandler(
+            $this->allowScalarValueCasting()->allowSuperfluousKeys()->container()->rootNodeBuilder(),
+            $this->container()->rootNodeBuilder(),
+            $this->container()->functionDefinitionRepository(),
+            $controller,
+        );
     }
 
     public function __clone()
