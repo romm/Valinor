@@ -20,9 +20,9 @@ final class ListNodeBuilderTest extends TestCase
         $setting = new Settings();
         $setting->allowUndefinedValues = true;
 
-        $shell = FakeShell::new(ListType::native(), settings: $setting);
+        $shell = FakeShell::new(ListType::native());
 
-        $node = (new RootNodeBuilder(new ListNodeBuilder()))->build($shell);
+        $node = (new RootNodeBuilder(new ListNodeBuilder(), $setting))->build($shell);
 
         self::assertTrue($node->isValid());
         self::assertSame([], $node->value());
@@ -32,6 +32,6 @@ final class ListNodeBuilderTest extends TestCase
     {
         $this->expectException(AssertionError::class);
 
-        (new RootNodeBuilder(new ListNodeBuilder()))->build(FakeShell::new(new FakeType()));
+        (new RootNodeBuilder(new ListNodeBuilder(), new Settings()))->build(FakeShell::new(new FakeType()));
     }
 }

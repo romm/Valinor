@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Mapper\Tree\Builder;
 
+use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Tree\Exception\MissingNodeValue;
 use CuyZ\Valinor\Mapper\Tree\Shell;
 use CuyZ\Valinor\Type\Type;
@@ -16,10 +17,15 @@ final class RootNodeBuilder
      */
     public Type $currentRootType;
 
-    public function __construct(private NodeBuilder $root) {}
+    public function __construct(
+        private NodeBuilder $root,
+        private Settings $settings,
+    ) {}
 
     public function build(Shell $shell): Node
     {
+        $shell = $shell->withSettings($this->settings);
+
         if (! $shell->hasValue()) {
             if (! $shell->allowUndefinedValues()) {
                 return Node::error($shell, new MissingNodeValue($shell->type()));

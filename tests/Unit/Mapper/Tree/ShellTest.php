@@ -18,7 +18,7 @@ final class ShellTest extends TestCase
         $type = new FakeType();
         $value = 'foo';
 
-        $shell = Shell::root(new Settings(), $type, $value);
+        $shell = Shell::root($type, $value);
 
         self::assertSame($type, $shell->type());
         self::assertSame($value, $shell->value());
@@ -26,7 +26,7 @@ final class ShellTest extends TestCase
 
     public function test_root_path_is_fixed(): void
     {
-        $shell = Shell::root(new Settings(), new FakeType(), 'foo');
+        $shell = Shell::root(new FakeType(), 'foo');
 
         self::assertSame('*root*', $shell->path());
     }
@@ -36,7 +36,7 @@ final class ShellTest extends TestCase
         $typeA = new FakeType();
         $typeB = FakeType::matching($typeA);
 
-        $shellA = Shell::root(new Settings(), $typeA, []);
+        $shellA = Shell::root($typeA, []);
         $shellB = $shellA->withType($typeB);
 
         self::assertNotSame($shellA, $shellB);
@@ -45,7 +45,7 @@ final class ShellTest extends TestCase
 
     public function test_allows_superfluous_keys(): void
     {
-        $shellA = Shell::root(new Settings(), new FakeType(), []);
+        $shellA = Shell::root(new FakeType(), []);
         $shellB = $shellA->withAllowedSuperfluousKeys(['foo', 'bar']);
 
         self::assertNotSame($shellA, $shellB);
@@ -57,7 +57,7 @@ final class ShellTest extends TestCase
         $valueA = 'foo';
         $valueB = 'bar';
 
-        $shellA = Shell::root(new Settings(), new FakeType(), $valueA);
+        $shellA = Shell::root(new FakeType(), $valueA);
         $shellB = $shellA->withValue($valueB);
 
         self::assertNotSame($shellA, $shellB);
@@ -66,7 +66,7 @@ final class ShellTest extends TestCase
 
     public function test_root_shell_is_root(): void
     {
-        $shell = Shell::root(new Settings(), new FakeType(), []);
+        $shell = Shell::root(new FakeType(), []);
 
         self::assertTrue($shell->isRoot());
         self::assertSame('', $shell->name());
@@ -77,7 +77,7 @@ final class ShellTest extends TestCase
         $value = 'some value';
         $type = FakeType::permissive();
 
-        $shell = Shell::root(new Settings(), new FakeType(), []);
+        $shell = Shell::root(new FakeType(), [])->withSettings(new Settings());
         $child = $shell->child('foo', $type)->withValue($value);
 
         self::assertFalse($child->isRoot());
@@ -94,7 +94,7 @@ final class ShellTest extends TestCase
         $attributesA = new Attributes($attributeA);
         $attributesB = new Attributes($attributeB);
 
-        $shellA = Shell::root(new Settings(), new FakeType(), []);
+        $shellA = Shell::root(new FakeType(), []);
         $shellB = $shellA->withAttributes($attributesA);
         $shellC = $shellB->withAttributes($attributesB);
 
@@ -113,7 +113,7 @@ final class ShellTest extends TestCase
             yield 'bar' => 'bar';
         })();
 
-        $shellA = Shell::root(new Settings(), new FakeType(), $value);
+        $shellA = Shell::root(new FakeType(), $value);
         $shellB = $shellA->transformIteratorToArray();
 
         self::assertNotSame($shellA, $shellB);

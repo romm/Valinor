@@ -20,9 +20,9 @@ final class ArrayNodeBuilderTest extends TestCase
         $setting = new Settings();
         $setting->allowUndefinedValues = true;
 
-        $shell = FakeShell::new(ArrayType::native(), settings: $setting);
+        $shell = FakeShell::new(ArrayType::native());
 
-        $node = (new RootNodeBuilder(new ArrayNodeBuilder()))->build($shell);
+        $node = (new RootNodeBuilder(new ArrayNodeBuilder(), $setting))->build($shell);
 
         self::assertTrue($node->isValid());
         self::assertSame([], $node->value());
@@ -32,6 +32,6 @@ final class ArrayNodeBuilderTest extends TestCase
     {
         $this->expectException(AssertionError::class);
 
-        (new RootNodeBuilder(new ArrayNodeBuilder()))->build(FakeShell::new(new FakeType()));
+        (new RootNodeBuilder(new ArrayNodeBuilder(), new Settings()))->build(FakeShell::new(new FakeType()));
     }
 }

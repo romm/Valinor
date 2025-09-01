@@ -79,17 +79,16 @@ final class Container
             TreeMapper::class => fn () => new TypeTreeMapper(
                 $this->get(TypeParser::class),
                 $this->get(RootNodeBuilder::class),
-                $settings,
             ),
 
             ArgumentsMapper::class => fn () => new TypeArgumentsMapper(
                 $this->get(FunctionDefinitionRepository::class),
                 $this->get(RootNodeBuilder::class),
-                $settings,
             ),
 
             RootNodeBuilder::class => fn () => new RootNodeBuilder(
                 $this->get(NodeBuilder::class),
+                $settings,
             ),
 
             NodeBuilder::class => function () use ($settings) {

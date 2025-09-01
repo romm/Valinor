@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Tests\Unit\Mapper\Tree\Builder;
 
 use AssertionError;
+use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Tree\Builder\RootNodeBuilder;
 use CuyZ\Valinor\Mapper\Tree\Builder\ScalarNodeBuilder;
 use CuyZ\Valinor\Tests\Fake\Mapper\FakeShell;
@@ -16,6 +17,6 @@ final class ScalarNodeBuilderTest extends TestCase
     {
         $this->expectException(AssertionError::class);
 
-        (new RootNodeBuilder(new ScalarNodeBuilder()))->build(FakeShell::any());
+        (new RootNodeBuilder(new ScalarNodeBuilder(), new Settings()))->build(FakeShell::any());
     }
 }
