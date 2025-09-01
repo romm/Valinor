@@ -40,30 +40,27 @@ final class Shell
     /**
      * @param list<string> $path
      */
-    private function __construct(Settings $settings, Type $type, array $path = [])
+    private function __construct(Type $type, array $path = [])
     {
         if ($type instanceof UnresolvableType) {
             throw new UnresolvableShellType($type);
         }
 
-        $this->settings = $settings;
         $this->type = $type;
         $this->path = $path;
     }
 
-    public static function root(
-        Settings $settings,
-        Type $type,
-        mixed $value,
-    ): self {
-        return (new self($settings, $type))->withValue($value);
+    public static function root(Type $type, mixed $value): self
+    {
+        return (new self($type))->withValue($value);
     }
 
     public function child(string $name, Type $type): self
     {
         $path = $this->path;
         $path[] = $name;
-        $instance = new self($this->settings, $type, $path);
+        $instance = new self($type, $path);
+        $instance->settings = $this->settings;
         $instance->name = $name;
 
         return $instance;
@@ -77,6 +74,14 @@ final class Shell
     public function isRoot(): bool
     {
         return ! isset($this->name);
+    }
+
+    public function withSettings(Settings $settings): self
+    {
+        $self = clone $this;
+        $self->settings = $settings;
+
+        return $self;
     }
 
     public function withType(Type $newType): self

@@ -22,8 +22,7 @@ final class TypeTreeMapperTest extends TestCase
 
         $this->mapper = new TypeTreeMapper(
             new FakeTypeParser(),
-            new RootNodeBuilder(new FakeNodeBuilder()),
-            new Settings(),
+            new RootNodeBuilder(new FakeNodeBuilder(), new Settings()),
         );
     }
 
