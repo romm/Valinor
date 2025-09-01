@@ -31,12 +31,7 @@ final class TypeArgumentsMapper implements ArgumentsMapper
         $function = $this->functionDefinitionRepository->for($callable);
 
         $elements = array_map(
-            fn (ParameterDefinition $parameter) => new ShapedArrayElement(
-                new StringValueType($parameter->name),
-                $parameter->type,
-                $parameter->isOptional,
-                $parameter->attributes,
-            ),
+            ShapedArrayElement::fromParameter(...),
             $function->parameters->toList(),
         );
 

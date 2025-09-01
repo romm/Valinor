@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Type\Types;
 
 use CuyZ\Valinor\Definition\Attributes;
+use CuyZ\Valinor\Definition\ParameterDefinition;
 use CuyZ\Valinor\Type\Type;
 
 /** @internal */
@@ -16,6 +17,16 @@ final class ShapedArrayElement
         private bool $optional = false,
         private ?Attributes $attributes = null,
     ) {}
+
+    public static function fromParameter(ParameterDefinition $parameter): self
+    {
+        return new self(
+            new StringValueType($parameter->name),
+            $parameter->type,
+            $parameter->isOptional,
+            $parameter->attributes,
+        );
+    }
 
     public function key(): StringValueType|IntegerValueType
     {
