@@ -43,7 +43,7 @@ final class ShapedArrayTypeTest extends TestCase
             new ShapedArrayElement(new IntegerValueType(1337), new NativeIntegerType(), true),
         ];
         $this->unsealedType = new ArrayType(
-            ArrayKeyType::from(StringValueType::from("'unsealed-key'")),
+            new ArrayKeyType([StringValueType::from("'unsealed-key'")]),
             new NativeFloatType(),
         );
 
@@ -257,6 +257,7 @@ final class ShapedArrayTypeTest extends TestCase
         $subTypeA = new FakeType();
         $subTypeB = new FakeType();
 
+        /** @var ShapedArrayType $type */
         $type = ShapedArrayType::unsealed(
             $unsealedType,
             new ShapedArrayElement(new StringValueType('foo'), $subTypeA),

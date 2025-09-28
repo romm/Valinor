@@ -13,6 +13,7 @@ use CuyZ\Valinor\Type\Types\CallableType;
 use CuyZ\Valinor\Type\Types\ClassStringType;
 use CuyZ\Valinor\Type\Types\EnumType;
 use CuyZ\Valinor\Type\Types\FloatValueType;
+use CuyZ\Valinor\Type\Types\GenericType;
 use CuyZ\Valinor\Type\Types\IntegerRangeType;
 use CuyZ\Valinor\Type\Types\IntegerValueType;
 use CuyZ\Valinor\Type\Types\InterfaceType;
@@ -168,13 +169,12 @@ final class TypeCompiler
 
                 return "new $class('{$type->className()}', [$generics])";
             case $type instanceof ClassStringType:
-                if (null === $type->subType()) {
-                    return "new $class()";
-                }
+                $subTypes = implode(', ', array_map(
+                    fn (Type $subType) => $this->compile($subType),
+                    $type->subTypes(),
+                ));
 
-                $subType = $this->compile($type->subType());
-
-                return "new $class($subType)";
+                return "new $class([$subTypes])";
             case $type instanceof EnumType:
                 $enumName = var_export($type->className(), true);
                 $pattern = var_export($type->pattern(), true);
@@ -195,6 +195,11 @@ final class TypeCompiler
                 ));
 
                 return "new $class([$parameters], $returnType)";
+            case $type instanceof GenericType:
+                $symbol = var_export($type->symbol, true);
+                $innerType = $this->compile($type->innerType);
+
+                return "new $class($symbol, $innerType)";
             case $type instanceof UnresolvableType:
                 $raw = var_export($type->toString(), true);
                 $message = var_export($type->message(), true);

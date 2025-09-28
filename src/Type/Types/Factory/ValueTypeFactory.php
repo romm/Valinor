@@ -47,7 +47,7 @@ final class ValueTypeFactory
 
         if (is_string($value)) {
             if (Reflection::classOrInterfaceExists($value)) {
-                return new ClassStringType(new NativeClassType($value));
+                return new ClassStringType([new NativeClassType($value)]);
             }
 
             if (str_contains($value, "'") && str_contains($value, '"')) {

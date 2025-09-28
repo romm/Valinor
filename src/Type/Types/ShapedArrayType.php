@@ -8,10 +8,11 @@ use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Type\CompositeTraversableType;
 use CuyZ\Valinor\Type\CompositeType;
-use CuyZ\Valinor\Type\Parser\Exception\Iterable\ShapedArrayElementDuplicatedKey;
 use CuyZ\Valinor\Type\DumpableType;
+use CuyZ\Valinor\Type\Parser\Exception\Iterable\InvalidShapedArrayUnsealedType;
+use CuyZ\Valinor\Type\Parser\Exception\Iterable\ShapedArrayElementDuplicatedKey;
 use CuyZ\Valinor\Type\Type;
-
+use CuyZ\Valinor\Type\VacantType;
 use CuyZ\Valinor\Utility\Polyfill;
 
 use function array_diff_key;
@@ -28,7 +29,7 @@ final class ShapedArrayType implements CompositeType, DumpableType
 {
     private bool $isUnsealed = false;
 
-    private ?ArrayType $unsealedType = null;
+    private ArrayType|VacantType|null $unsealedType = null;
 
     public function __construct(
         /** @var list<ShapedArrayElement> */
@@ -60,8 +61,12 @@ final class ShapedArrayType implements CompositeType, DumpableType
     /**
      * @no-named-arguments
      */
-    public static function unsealed(ArrayType $unsealedType, ShapedArrayElement ...$elements): self
+    public static function unsealed(Type $unsealedType, ShapedArrayElement ...$elements): self
     {
+        if (! $unsealedType instanceof ArrayType && ! $unsealedType instanceof VacantType) {
+            throw new InvalidShapedArrayUnsealedType($unsealedType, ...$elements);
+        }
+
         $self = new self($elements);
         $self->isUnsealed = true;
         $self->unsealedType = $unsealedType;
@@ -90,7 +95,7 @@ final class ShapedArrayType implements CompositeType, DumpableType
         return $this->unsealedType !== null;
     }
 
-    public function unsealedType(): ArrayType
+    public function unsealedType(): ArrayType|VacantType
     {
         assert($this->isUnsealed);
 
@@ -132,16 +137,16 @@ final class ShapedArrayType implements CompositeType, DumpableType
                 return Node::ternary(
                     condition: Node::functionCall('array_key_exists', [$key, $node]),
                     ifTrue: $element->type()->compiledAccept($node->key($key)),
-                    ifFalse: Node::value($element->isOptional())
+                    ifFalse: Node::value($element->isOptional()),
                 )->wrap();
-            }, $this->elements)
+            }, $this->elements),
         ];
 
         if ($this->isUnsealed) {
             $unsealedType = $this->unsealedType();
 
             $elementsKeys = array_flip(
-                array_map(fn (ShapedArrayElement $element) => $element->key()->value(), $this->elements)
+                array_map(fn (ShapedArrayElement $element) => $element->key()->value(), $this->elements),
             );
 
             $conditions[] = Node::functionCall(function_exists('array_all') ? 'array_all' : Polyfill::class . '::array_all', [
@@ -229,6 +234,28 @@ final class ShapedArrayType implements CompositeType, DumpableType
         return $types;
     }
 
+    public function replace(callable $callback): Type
+    {
+        $elements = array_map(
+            fn (ShapedArrayElement $element) => new ShapedArrayElement(
+                $element->key(),
+                $callback($element->type()),
+                $element->isOptional(),
+                $element->attributes(),
+            ),
+            $this->elements,
+        );
+
+        if (isset($this->unsealedType)) {
+            return self::unsealed($callback($this->unsealedType), ...$elements);
+        }
+
+        $self = new self($elements);
+        $self->isUnsealed = $this->isUnsealed;
+
+        return $self;
+    }
+
     /**
      * @return list<ShapedArrayElement>
      */
@@ -250,7 +277,7 @@ final class ShapedArrayType implements CompositeType, DumpableType
 
         while ($element = array_shift($elements)) {
             $optional = $element->isOptional() ? '?' : '';
-            yield $element->key()->toString() .  "$optional: ";
+            yield $element->key()->toString() . "$optional: ";
             yield $element->type();
 
             if ($elements !== []) {
