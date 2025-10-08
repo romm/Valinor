@@ -10,10 +10,13 @@ use CuyZ\Valinor\Type\CompositeType;
 use CuyZ\Valinor\Type\FloatType;
 use CuyZ\Valinor\Type\IntegerType;
 use CuyZ\Valinor\Type\ObjectType;
+use CuyZ\Valinor\Type\Parser\Exception\InvalidType;
 use CuyZ\Valinor\Type\ScalarType;
 use CuyZ\Valinor\Type\StringType;
 use CuyZ\Valinor\Type\Type;
 use CuyZ\Valinor\Type\Types\NullType;
+use CuyZ\Valinor\Type\Types\UnresolvableType;
+use CuyZ\Valinor\Type\VacantType;
 
 /** @internal */
 final class TypeHelper
@@ -60,5 +63,48 @@ final class TypeHelper
         }
 
         return $types;
+    }
+
+    /**
+     * @param non-empty-array<non-empty-string, Type> $vacantTypes
+     */
+    public static function assignVacantTypes(Type $type, array $vacantTypes): Type
+    {
+        // @todo pass an option to let unresolvable types here (for local types, templates, etc…)
+        // @todo and the other option returns the unresolvable type if it is found
+        // @todo this way we can get rid of UnresolvableTypeFinderParser
+
+        // @todo refacto?
+        foreach ($vacantTypes as $key => $vacantType) {
+            try {
+                $vacantTypes[$key] = self::doAssignVacantTypes($vacantType, $vacantTypes);
+            } catch (InvalidType $exception) {
+                $vacantTypes[$key] = new UnresolvableType($vacantType->toString(), $exception->getMessage());
+            }
+        }
+
+        try {
+            return self::doAssignVacantTypes($type, $vacantTypes);
+        } catch (InvalidType $exception) {
+            return new UnresolvableType($type->toString(), $exception->getMessage());
+        }
+    }
+
+    /**
+     * @param non-empty-array<non-empty-string, Type> $vacantTypes
+     */
+    private static function doAssignVacantTypes(Type $type, array $vacantTypes): Type
+    {
+        if ($type instanceof VacantType && isset($vacantTypes[$type->symbol()])) {
+            return $vacantTypes[$type->symbol()];
+        }
+
+        if ($type instanceof CompositeType) {
+            return $type->replace(
+                static fn (Type $subType) => self::doAssignVacantTypes($subType, $vacantTypes),
+            );
+        }
+
+        return $type;
     }
 }

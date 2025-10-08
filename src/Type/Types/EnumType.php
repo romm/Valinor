@@ -133,6 +133,12 @@ final class EnumType implements ClassType
             || $other instanceof MixedType;
     }
 
+    public function inferGenericsFrom(Type $other, Generics $generics): Generics
+    {
+        // @todo
+        return $generics;
+    }
+
     /**
      * @return non-empty-string
      */

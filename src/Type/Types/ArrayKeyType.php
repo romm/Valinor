@@ -132,6 +132,15 @@ final class ArrayKeyType implements ScalarType, CompositeType, DumpableType
         return false;
     }
 
+    public function inferGenericsFrom(Type $other, Generics $generics): Generics
+    {
+        if (! $other instanceof self) {
+            return $generics;
+        }
+
+        return $generics->todo($this->types, $other->types);
+    }
+
     public function canCast(mixed $value): bool
     {
         foreach ($this->types as $type) {

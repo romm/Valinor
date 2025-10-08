@@ -41,7 +41,10 @@ final class UnionNodeBuilder implements NodeBuilder
             }
 
             try {
-                $node = $shell->withType($subType)->build();
+                $node = $shell
+                    ->withType($subType)
+                    ->shouldNotApplyConverters()
+                    ->build();
             } catch (CannotResolveObjectType) {
                 // We catch a special case where an interface type from the
                 // union has no implementation. In this case, we just ignore the

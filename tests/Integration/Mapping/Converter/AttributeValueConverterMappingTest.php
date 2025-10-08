@@ -274,7 +274,10 @@ final class UppercaseSelfRegisteredConverter
 final class ClassConverter
 {
     /**
-     * @param callable(string): object $next
+     * @template T of object
+     *
+     * @param callable(string): T $next
+     * @return T
      */
     public function map(string $value, callable $next): object
     {
@@ -286,9 +289,10 @@ final class ClassConverter
 final class FunctionConverter
 {
     /**
-     * @param array<mixed> $values
-     * @param callable(array<mixed>): array<mixed> $next
-     * @return array<mixed>
+     * @template T of array
+     * @param T $values
+     * @param callable<Type>(Type): Type $next
+     * @return T
      */
     public function map(array $values, callable $next): array
     {
@@ -326,9 +330,12 @@ final class SomeClassThatImplementsInterface implements SomeInterface
 #[Attribute, AsConverter]
 final class ConverterReturningEmptyString
 {
+    /**
+     * @return non-empty-string
+     */
     public function map(string $value): string
     {
-        return '';
+        return ''; // @phpstan-ignore return.type (we intentionally return an empty string to check this is handled properly by the mapper)
     }
 }
 

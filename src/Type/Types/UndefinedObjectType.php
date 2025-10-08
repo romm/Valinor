@@ -36,6 +36,12 @@ final class UndefinedObjectType implements Type
             || $other instanceof MixedType;
     }
 
+    public function inferGenericsFrom(Type $other, Generics $generics): Generics
+    {
+        // @todo
+        return $generics;
+    }
+
     public function nativeType(): UndefinedObjectType
     {
         return $this;

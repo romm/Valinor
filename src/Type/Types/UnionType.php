@@ -13,6 +13,7 @@ use CuyZ\Valinor\Type\Type;
 
 use function array_map;
 use function array_values;
+use function count;
 use function implode;
 
 /** @internal */
@@ -97,6 +98,33 @@ final class UnionType implements CombiningType, DumpableType
         }
 
         return false;
+    }
+
+    public function inferGenericsFrom(Type $other, Generics $generics): Generics
+    {
+        $otherTypes = $other instanceof UnionType ? $other->types : [$other];
+
+        foreach ($otherTypes as $key => $otherType) {
+            if ($otherType->matches($this)) {
+                unset($otherTypes[$key]);
+            }
+        }
+
+        if ($otherTypes === []) {
+            return $generics;
+        }
+
+        if (count($otherTypes) === 1) {
+            $otherTypes = $otherTypes[0];
+        } else {
+            $otherTypes = new UnionType(...$otherTypes);
+        }
+
+        foreach ($this->types as $type) {
+            $generics = $type->inferGenericsFrom($otherTypes, $generics);
+        }
+
+        return $generics;
     }
 
     public function traverse(): array

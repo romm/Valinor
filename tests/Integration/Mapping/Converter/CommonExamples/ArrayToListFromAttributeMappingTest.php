@@ -35,8 +35,9 @@ final class ArrayToListFromAttributeMappingTest extends IntegrationTestCase
 final class ArrayToList
 {
     /**
-     * @param array<mixed> $value
-     * @return list<mixed>
+     * @template T
+     * @param non-empty-array<T> $value
+     * @return non-empty-list<T>
      */
     public function map(array $value): array
     {

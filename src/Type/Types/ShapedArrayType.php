@@ -176,6 +176,29 @@ final class ShapedArrayType implements CompositeType, DumpableType
             return $other->isMatchedBy($this);
         }
 
+        if ($other instanceof self) {
+            foreach ($this->elements as $element) {
+                foreach ($other->elements as $otherElement) {
+                    if ($element->key()->matches($otherElement->key())
+                        && $element->type()->matches($otherElement->type())
+                    ) {
+                        continue 2;
+                    }
+                }
+
+                if (! $element->isOptional()) {
+                    return false;
+                }
+            }
+
+            if ($other->isUnsealed) {
+                return $this->isUnsealed
+                    && $this->unsealedType()->matches($other->unsealedType());
+            }
+
+            return true;
+        }
+
         if ($other instanceof CompositeTraversableType) {
             $keyType = $other->keyType();
             $subType = $other->subType();
@@ -197,30 +220,13 @@ final class ShapedArrayType implements CompositeType, DumpableType
             return true;
         }
 
-        if (! $other instanceof self) {
-            return false;
-        }
+        return false;
+    }
 
-        foreach ($this->elements as $element) {
-            foreach ($other->elements as $otherElement) {
-                if ($element->key()->matches($otherElement->key())
-                    && $element->type()->matches($otherElement->type())
-                ) {
-                    continue 2;
-                }
-            }
-
-            if (! $element->isOptional()) {
-                return false;
-            }
-        }
-
-        if ($other->isUnsealed) {
-            return $this->isUnsealed
-                && $this->unsealedType()->matches($other->unsealedType());
-        }
-
-        return true;
+    public function inferGenericsFrom(Type $other, Generics $generics): Generics
+    {
+        // @todo
+        return $generics;
     }
 
     public function traverse(): array

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Mapper\Tree;
 
 use CuyZ\Valinor\Definition\Attributes;
+use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Tree\Builder\Node;
 use CuyZ\Valinor\Mapper\Tree\Builder\NodeBuilder;
 use CuyZ\Valinor\Mapper\Tree\Exception\InvalidNodeValue;
@@ -42,6 +43,7 @@ final class Shell
         public bool $allowPermissiveTypes,
         /** @var list<string> */
         public array $allowedSuperfluousKeys,
+        public bool $shouldApplyConverters,
         private NodeBuilder $nodeBuilder,
         private TypeDumper $typeDumper,
         private ObjectTrace $objectTrace, // Helps detecting circular dependencies
@@ -163,6 +165,14 @@ final class Shell
     {
         $self = clone $this;
         $self->allowSuperfluousKeys = true;
+
+        return $self;
+    }
+
+    public function shouldNotApplyConverters(): self
+    {
+        $self = clone $this;
+        $self->shouldApplyConverters = false;
 
         return $self;
     }

@@ -11,6 +11,9 @@ use CuyZ\Valinor\Mapper\Tree\Exception\ConverterHasTooManyParameters;
 use CuyZ\Valinor\Tests\Integration\IntegrationTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+use function array_map;
+use function iterator_to_array;
+
 final class ValueConverterMappingTest extends IntegrationTestCase
 {
     /**
@@ -57,7 +60,7 @@ final class ValueConverterMappingTest extends IntegrationTestCase
             'expectedResult' => 'foo!',
             'convertersByPriority' => [
                 [
-                    fn (string $value, callable $next) => $next() . '!', // @phpstan-ignore binaryOp.invalid (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
+                    fn (string $value, callable $next): string => $next() . '!', // @phpstan-ignore binaryOp.invalid (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
                 ],
             ],
         ];
@@ -113,14 +116,191 @@ final class ValueConverterMappingTest extends IntegrationTestCase
                 ],
             ],
         ];
+
+        yield 'generic array key' => [
+            'type' => 'array<int, string>',
+            'value' => [42 => 'foo', 1337 => 'bar'],
+            'expectedResult' => [42 => 'foo!', 1337 => 'bar!'],
+            'convertersByPriority' => [[
+                /**
+                 * @template T of array-key
+                 * @param array<T, string> $value
+                 * @return array<T, non-empty-string>
+                 */
+                fn (array $value) => array_map(fn ($v) => "$v!", $value), // @phpstan-ignore encapsedStringPart.nonString (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
+            ]],
+        ];
+
+        yield 'generic array subtype' => [
+            'type' => 'array<int, string>',
+            'value' => [42 => 'foo', 1337 => 'bar'],
+            'expectedResult' => [42 => 'foo!', 1337 => 'bar!'],
+            'convertersByPriority' => [[
+                /**
+                 * @template T
+                 * @param array<int, T> $value
+                 * @return array<int, T>
+                 */
+                fn (array $value) => array_map(fn ($v) => "$v!", $value), // @phpstan-ignore encapsedStringPart.nonString (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
+            ]],
+        ];
+
+        yield 'generic non-empty-array key' => [
+            'type' => 'non-empty-array<int, string>',
+            'value' => [42 => 'foo', 1337 => 'bar'],
+            'expectedResult' => [42 => 'foo!', 1337 => 'bar!'],
+            'convertersByPriority' => [[
+                /**
+                 * @template T of array-key
+                 * @param non-empty-array<T, string> $value
+                 * @return non-empty-array<T, non-empty-string>
+                 */
+                fn (array $value) => array_map(fn ($v) => "$v!", $value), // @phpstan-ignore encapsedStringPart.nonString (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
+            ]],
+        ];
+
+        yield 'generic non-empty-array subtype' => [
+            'type' => 'non-empty-array<int, string>',
+            'value' => [42 => 'foo', 1337 => 'bar'],
+            'expectedResult' => [42 => 'foo!', 1337 => 'bar!'],
+            'convertersByPriority' => [[
+                /**
+                 * @template T
+                 * @param non-empty-array<int, T> $value
+                 * @return non-empty-array<int, T>
+                 */
+                fn (array $value) => array_map(fn ($v) => "$v!", $value), // @phpstan-ignore encapsedStringPart.nonString (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
+            ]],
+        ];
+
+        yield 'generic list subtype' => [
+            'type' => 'list<string>',
+            'value' => ['foo', 'bar'],
+            'expectedResult' => ['foo!', 'bar!'],
+            'convertersByPriority' => [[
+                /**
+                 * @template T
+                 * @param list<T> $value
+                 * @return list<T>
+                 */
+                fn (array $value) => array_map(fn ($v) => "$v!", $value), // @phpstan-ignore encapsedStringPart.nonString (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
+            ]],
+        ];
+
+        yield 'generic non-empty-list subtype' => [
+            'type' => 'non-empty-list<string>',
+            'value' => ['foo', 'bar'],
+            'expectedResult' => ['foo!', 'bar!'],
+            'convertersByPriority' => [[
+                /**
+                 * @template T
+                 * @param non-empty-list<T> $value
+                 * @return non-empty-list<T>
+                 */
+                fn (array $value) => array_map(fn ($v) => "$v!", $value), // @phpstan-ignore encapsedStringPart.nonString (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
+            ]],
+        ];
+
+        yield 'generic iterable key' => [
+            'type' => 'iterable<int, string>',
+            'value' => [42 => 'foo', 1337 => 'bar'],
+            'expectedResult' => [42 => 'foo!', 1337 => 'bar!'],
+            'convertersByPriority' => [[
+                /**
+                 * @template T of array-key
+                 * @param iterable<T, string> $value
+                 * @return array<T, non-empty-string>
+                 */
+                fn (iterable $value) => array_map(fn ($v) => "$v!", iterator_to_array($value)), // @phpstan-ignore encapsedStringPart.nonString (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
+            ]],
+        ];
+
+        yield 'generic iterable subtype' => [
+            'type' => 'iterable<int, string>',
+            'value' => [42 => 'foo', 1337 => 'bar'],
+            'expectedResult' => [42 => 'foo!', 1337 => 'bar!'],
+            'convertersByPriority' => [[
+                /**
+                 * @template T
+                 * @param iterable<int, T> $value
+                 * @return array<int, T>
+                 */
+                fn (iterable $value) => array_map(fn ($v) => "$v!", iterator_to_array($value)), // @phpstan-ignore encapsedStringPart.nonString (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
+            ]],
+        ];
+
+        yield 'generic boolean' => [
+            'type' => 'bool',
+            'value' => false,
+            'expectedResult' => true,
+            'convertersByPriority' => [[
+                /**
+                 * @template T of true
+                 * @return T
+                 */
+                fn (bool $value) => true,
+            ]],
+        ];
+
+        yield 'generic boolean value' => [
+            'type' => 'true',
+            'value' => false,
+            'expectedResult' => true,
+            'convertersByPriority' => [[
+                /**
+                 * @template T of true
+                 * @return T
+                 */
+                fn (bool $value) => true,
+            ]],
+        ];
+
+        yield 'generic string' => [
+            'type' => 'string',
+            'value' => 'foo',
+            'expectedResult' => 'foo!',
+            'convertersByPriority' => [[
+                /**
+                 * @template T of string
+                 * @return T|non-empty-string
+                 */
+                fn (string $value) => "$value!",
+            ]],
+        ];
+
+        yield 'generic string value' => [
+            'type' => '"foo"',
+            'value' => 'foo',
+            'expectedResult' => 'foo!',
+            'convertersByPriority' => [[
+                /**
+                 * @template T of string
+                 * @return T|non-empty-string
+                 */
+                fn (string $value) => "$value!",
+            ]],
+        ];
+
+        yield 'generic non-empty-string' => [
+            'type' => 'non-empty-string',
+            'value' => 'foo',
+            'expectedResult' => 'foo!',
+            'convertersByPriority' => [[
+                /**
+                 * @template T of string
+                 * @return T
+                 */
+                fn (string $value) => "$value!",
+            ]],
+        ];
     }
 
     public function test_converter_with_no_priority_has_priority_0_by_default(): void
     {
         $result = $this->mapperBuilder()
-            ->registerConverter(fn (string $value, callable $next) => $next($value . '!'), -1)
-            ->registerConverter(fn (string $value, callable $next) => $next($value . '?'))
-            ->registerConverter(fn (string $value, callable $next) => $next($value . '#'), 1)
+            ->registerConverter(fn (string $value, callable $next): string => $next($value . '!'), -1) // @phpstan-ignore return.type (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
+            ->registerConverter(fn (string $value, callable $next): string => $next($value . '?')) // @phpstan-ignore return.type (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
+            ->registerConverter(fn (string $value, callable $next): string => $next($value . '#'), 1) // @phpstan-ignore return.type (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
             ->mapper()
             ->map('string', 'foo');
 
@@ -135,12 +315,19 @@ final class ValueConverterMappingTest extends IntegrationTestCase
 
         $result = $this->mapperBuilder()
             ->infer(SomeInterfaceForClassInferring::class, fn () => $class::class)
-            ->registerConverter(function (int $value, callable $next): SomeInterfaceForClassInferring {
-                $value++;
+            ->registerConverter(
+                /**
+                 * @todo
+                 * @template T of SomeInterfaceForClassInferring
+                 * @return T
+                 */
+                function (int $value, callable $next): SomeInterfaceForClassInferring {
+                    $value++;
 
-                /** @var SomeInterfaceForClassInferring */
-                return $next($value);
-            })
+                    /** @var SomeInterfaceForClassInferring */
+                    return $next($value);
+                }
+            )
             ->mapper()
             ->map(SomeInterfaceForClassInferring::class, 123);
 
@@ -151,7 +338,7 @@ final class ValueConverterMappingTest extends IntegrationTestCase
     {
         try {
             $this->mapperBuilder()
-                ->registerConverter(fn (string $value, callable $next) => $next(42))
+                ->registerConverter(fn (string $value, callable $next): string => $next(42)) // @phpstan-ignore return.type (we cannot set closure parameters / see https://github.com/phpstan/phpstan/issues/3770)
                 ->mapper()
                 ->map('string', 'foo');
         } catch (MappingError $exception) {
@@ -198,7 +385,10 @@ final class ValueConverterMappingTest extends IntegrationTestCase
     {
         try {
             $this->mapperBuilder()
-                ->registerConverter(fn (string $value) => '')
+                ->registerConverter(
+                    /** @return non-empty-string */
+                    fn (string $value) => ''
+                )
                 ->mapper()
                 ->map('non-empty-string', 'foo');
         } catch (MappingError $exception) {

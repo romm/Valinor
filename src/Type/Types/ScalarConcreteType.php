@@ -49,6 +49,11 @@ final class ScalarConcreteType implements ScalarType
             || $other instanceof MixedType;
     }
 
+    public function inferGenericsFrom(Type $other, Generics $generics): Generics
+    {
+        return $generics;
+    }
+
     public function canCast(mixed $value): bool
     {
         return is_scalar($value) || $value instanceof Stringable;
