@@ -27,6 +27,7 @@ use CuyZ\Valinor\Compiler\Native\ReturnNode;
 use CuyZ\Valinor\Compiler\Native\ShortClosureNode;
 use CuyZ\Valinor\Compiler\Native\TernaryNode;
 use CuyZ\Valinor\Compiler\Native\ThrowNode;
+use CuyZ\Valinor\Compiler\Native\TryNode;
 use CuyZ\Valinor\Compiler\Native\ValueNode;
 use CuyZ\Valinor\Compiler\Native\VariableNode;
 use CuyZ\Valinor\Compiler\Native\WrapNode;
@@ -99,7 +100,10 @@ abstract class Node
         return new ComplianceNode(new FunctionCallNode($name, $arguments));
     }
 
-    public static function if(Node $condition, Node $body): IfNode
+    /**
+     * @param Node|non-empty-list<Node> $body
+     */
+    public static function if(Node $condition, Node|array $body): IfNode
     {
         return new IfNode($condition, $body);
     }
@@ -190,6 +194,11 @@ abstract class Node
     public static function throw(Node $node): ThrowNode
     {
         return new ThrowNode($node);
+    }
+
+    public static function try(Node...$body): TryNode
+    {
+        return new TryNode(...$body);
     }
 
     /**

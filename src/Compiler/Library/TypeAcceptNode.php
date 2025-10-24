@@ -9,6 +9,7 @@ use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Type\Type;
 
+// @todo remove and use $type->compiledAccept() directly?
 /** @internal */
 final class TypeAcceptNode extends Node
 {

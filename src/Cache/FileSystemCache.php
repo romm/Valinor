@@ -16,6 +16,7 @@ use function chmod;
 use function file_exists;
 use function file_put_contents;
 use function is_dir;
+use function microtime;
 use function mkdir;
 use function random_bytes;
 use function rename;
@@ -43,12 +44,20 @@ final class FileSystemCache implements Cache
     {
         $filename = $this->cacheDir . DIRECTORY_SEPARATOR . $key . '.php';
 
+        //        $time = microtime(true);
+
         if (! file_exists($filename)) {
             return null;
         }
 
+        //        echo "CACHE GET (FILE EXISTS) — " . (microtime(true) - $time) * 1000 . 'ms' . PHP_EOL;
+
         try {
-            return (require $filename)(...$arguments); // @phpstan-ignore callable.nonCallable
+            //            $time = microtime(true);
+            $todo = (require $filename)(...$arguments); // @phpstan-ignore callable.nonCallable
+            //            echo "CACHE GET (REQUIRE FILE) — " . (microtime(true) - $time) * 1000 . 'ms' . PHP_EOL;
+
+            return $todo;
         } catch (Error) {
             throw new CorruptedCompiledPhpCacheFile($filename);
         }

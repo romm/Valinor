@@ -6,6 +6,7 @@ namespace CuyZ\Valinor\Compiler\Native;
 
 use CuyZ\Valinor\Compiler\Compiler;
 use CuyZ\Valinor\Compiler\Node;
+use CuyZ\Valinor\Type\Type;
 
 /** @internal */
 final class ComplianceNode extends Node
@@ -31,6 +32,11 @@ final class ComplianceNode extends Node
     public function castToArray(): self
     {
         return new self(CastNode::toArray($this));
+    }
+
+    public function castTo(Type $type): self
+    {
+        return new self(CastNode::to($type, $this));
     }
 
     public function clone(): self
@@ -109,6 +115,11 @@ final class ComplianceNode extends Node
     public function isGreaterOrEqualsTo(Node $right): self
     {
         return new self(new GreaterOrEqualsToNode($this, $right));
+    }
+
+    public function unpack(): self
+    {
+        return new self(new UnpackNode($this));
     }
 
     public function compile(Compiler $compiler): Compiler

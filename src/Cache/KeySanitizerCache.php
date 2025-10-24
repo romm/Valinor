@@ -8,6 +8,7 @@ use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Utility\Package;
 
 use function hash;
+use function microtime;
 use function strstr;
 
 /**
@@ -28,7 +29,13 @@ final class KeySanitizerCache implements Cache
 
     public function get(string $key, mixed ...$arguments): mixed
     {
-        return $this->delegate->get($this->sanitize($key), ...$arguments);
+        //        $time = microtime(true);
+
+        $todo = $this->delegate->get($this->sanitize($key), ...$arguments);
+
+        //        echo "CACHE GET (KEY SANITIZER) — " . (microtime(true) - $time) * 1000 . 'ms' . PHP_EOL;
+
+        return $todo;
     }
 
     public function set(string $key, CacheEntry $entry): void
@@ -47,7 +54,8 @@ final class KeySanitizerCache implements Cache
     private function sanitize(string $key): string
     {
         // @infection-ignore-all
-        self::$version ??= PHP_VERSION . '/' . Package::version();
+        //        self::$version ??= PHP_VERSION . '/' . Package::version();
+        self::$version ??= PHP_VERSION; // @todo
 
         $firstPart = strstr($key, "\0", before_needle: true);
 
