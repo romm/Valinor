@@ -455,7 +455,7 @@ final class HttpRequestMappingTest extends IntegrationTestCase
             ) => [];
 
         $this->expectException(TypeErrorDuringArgumentsMapping::class);
-        $this->expectExceptionMessageMatches('/Could not map arguments of `.*`: element `invalidParameter` is not bound to a route parameter and is not tagged with a `#\[FromQuery\]` nor a `#\[FromBody\]` attribute./');
+        $this->expectExceptionMessageMatches('/Could not map arguments of `.*`: element `invalidParameter` is not tagged with any of `#\[FromRoute\]`, `#\[FromQuery\]` or `#\[FromBody\]` attribute./');
 
         $this->mapperBuilder()
             ->argumentsMapper()
