@@ -250,6 +250,37 @@ final class HttpRequestMappingTest extends IntegrationTestCase
         ], $result);
     }
 
+    public function test_can_map_http_request_with_default_query_and_body_values(): void
+    {
+        $request = new HttpRequest(
+            queryParameters: [
+                'someQueryParameter' => 'foo',
+            ],
+            bodyValues: [
+                'someBodyValue' => 'bar',
+                'yetAnotherBodyValue' => 999,
+            ],
+        );
+
+        $controller = fn (
+            #[FromQuery] string $someQueryParameter,
+            #[FromBody] string $someBodyValue,
+            #[FromQuery] int $anotherQueryParameter = 42,
+            #[FromBody] int $anotherBodyValue = 404,
+            #[FromBody] int $yetAnotherBodyValue = 1337,
+        ) => [];
+
+        $result = $this->mapperBuilder()
+            ->argumentsMapper()
+            ->mapArguments($controller, $request);
+
+        self::assertSame([
+            'someQueryParameter' => 'foo',
+            'someBodyValue' => 'bar',
+            'yetAnotherBodyValue' => 999,
+        ], $result);
+    }
+
     public function test_mapping_route_parameters_enables_scalar_value_casting(): void
     {
         $request = new HttpRequest(

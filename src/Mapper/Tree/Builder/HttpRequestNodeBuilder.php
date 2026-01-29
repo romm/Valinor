@@ -84,6 +84,8 @@ final class HttpRequestNodeBuilder implements NodeBuilder
 
                     $child = $child->withValue($query[$key]);
                     unset($query[$key]);
+                } elseif ($element->isOptional()) {
+                    continue;
                 }
             } elseif ($attributes->has(FromBody::class)) {
                 /** @var FromBody $attribute */
@@ -99,6 +101,8 @@ final class HttpRequestNodeBuilder implements NodeBuilder
 
                     $child = $child->withValue($body[$key]);
                     unset($body[$key]);
+                } elseif ($element->isOptional()) {
+                    continue;
                 }
             } elseif ($request->requestObject && is_a($request->requestObject, $child->type->toString(), true)) {
                 $child = $child->withValue($request->requestObject);

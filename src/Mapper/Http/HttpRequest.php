@@ -36,34 +36,34 @@ use function is_object;
  * use CuyZ\Valinor\Mapper\Http\FromRoute;
  * use CuyZ\Valinor\Mapper\Http\HttpRequest;
  * use CuyZ\Valinor\MapperBuilder;
- * use My\App\AuthorId;
- * use My\App\Status;
- * use My\App\Sort;
  *
- * // Controller to list articles of an author
- * final class ListArticle
+ * final class ListArticles
  * {
- *     #[Route('GET', '/api/authors/{authorId}/articles')]
+ *     // GET /api/authors/{authorId}/articles
  *     public function __invoke(
  *         // Comes from the route
- *         #[FromRoute] AuthorId $authorId,
+ *         #[FromRoute] string $authorId,
  *
- *         // Both come from query parameters
- *         #[FromQuery] Status $status,
- *         #[FromQuery] Sort $sort,
+ *         // All come from query parameters
+ *         #[FromQuery] string $status,
+ *         #[FromQuery] string $sort,
+ *         #[FromQuery] int $page,
+ *         #[FromQuery] int $limit,
  *     ): ResponseInterface { … }
  * }
  *
- * // GET /api/authors/42/articles?status=published&sort=date-desc
+ * // GET /api/authors/42/articles?status=published&sort=date-desc&page=2&limit=10
  * $request = new HttpRequest(
  *     routeParameters: ['authorId' => 42],
  *     queryParameters: [
  *         'status' => 'published',
  *         'sort' => 'date-desc',
+ *         'page' => 2,
+ *         'limit' => 10,
  *     ],
  * );
  *
- * $controller = new ListArticle();
+ * $controller = new ListArticles();
  *
  * $arguments = (new MapperBuilder())
  *     ->argumentsMapper()
@@ -80,21 +80,18 @@ use function is_object;
  * use CuyZ\Valinor\Mapper\Http\FromRoute;
  * use CuyZ\Valinor\Mapper\Http\HttpRequest;
  * use CuyZ\Valinor\MapperBuilder;
- * use My\App\PostId;
- * use My\App\Email;
- * use My\App\Comment;
  *
  * // Controller to post a comment on an article
  * final class PostComment
  * {
- *     #[Route('POST', '/api/posts/{postId}/comments')]
+ *     // POST /api/posts/{postId}/comments
  *     public function __invoke(
  *         // Comes from the route
- *         #[FromRoute] PostId $postId,
+ *         #[FromRoute] int $postId,
  *
  *         // Both come from body payload
- *         #[FromBody] Email $author,
- *         #[FromBody] Comment $content,
+ *         #[FromBody] string $author,
+ *         #[FromBody] string $content,
  *     ): ResponseInterface { … }
  * }
  *
@@ -122,10 +119,11 @@ use function is_object;
  * Instead of mapping individual query parameters or body values to separate
  * parameters, the `mapAll` parameter can be used to map all of them at once to
  * a single parameter. This is useful when working with complex data structures
- * or when the number of parameters is dynamic or large.
+ * or when the number of parameters is large.
  *
  * ```
  * use CuyZ\Valinor\Mapper\Http\FromQuery;
+ * use CuyZ\Valinor\Mapper\Http\FromRoute;
  *
  * final readonly class ArticleFilters
  * {
@@ -139,9 +137,10 @@ use function is_object;
  *
  * final class ListArticles
  * {
+ *     // GET /api/authors/{authorId}/articles
  *     public function __invoke(
- *         #[FromQuery(mapAll: true)]
- *         ArticleFilters $filters,
+ *         #[FromRoute] string $authorId,
+ *         #[FromQuery(mapAll: true)] ArticleFilters $filters,
  *     ): ResponseInterface { … }
  * }
  * ```
