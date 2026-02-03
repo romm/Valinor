@@ -92,11 +92,13 @@ nav:
       - Infer interfaces: how-to/infer-interfaces.md
       - Map arguments of a callable: how-to/map-arguments-of-a-callable.md
       - Customize error messages: how-to/customize-error-messages.md
+      - Use mapper configurators: how-to/use-mapper-configurators.md
   - Serialization:
       - Normalizing data: serialization/normalizer.md
       - Extending the normalizer: serialization/extending-normalizer.md
       - Common transformers examples: serialization/common-transformers-examples.md
       - Normalizing to JSON: serialization/normalizing-json.md
+      - Using normalizer configurators: serialization/use-normalizer-configurators.md
   - Other:
       - Performance & caching: other/performance-and-caching.md
       - App & framework integration: other/app-and-framework-integration.md
