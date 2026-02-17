@@ -93,6 +93,7 @@ nav:
       - Map arguments of a callable: how-to/map-arguments-of-a-callable.md
       - Customize error messages: how-to/customize-error-messages.md
       - Use mapper configurators: how-to/use-mapper-configurators.md
+      - Common mapper configurators: how-to/common-mapper-configurators.md
   - Serialization:
       - Normalizing data: serialization/normalizer.md
       - Extending the normalizer: serialization/extending-normalizer.md
