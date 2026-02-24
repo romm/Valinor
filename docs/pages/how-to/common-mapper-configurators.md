@@ -10,26 +10,28 @@ used to apply common mapping behaviors:
 
 ## Restricting key case
 
-The `RestrictKeyCase` configurator restricts which key case is accepted when
-mapping input data to objects or shaped array. If a key does not match the
-expected case, a mapping error will be raised.
+Four configurators restrict which key case is accepted when mapping input data
+to objects or shaped arrays. If a key does not match the expected case, a
+mapping error will be raised.
 
 This is useful, for instance, to enforce a consistent naming convention across
 an API's input to ensure that a JSON payload only contains `camelCase`,
-`snake_case` or `kebab-case` keys.
+`snake_case`, `PascalCase` or `kebab-case` keys.
 
-Available cases:
+Available configurators:
 
-| Case                              | Example       |
-|-----------------------------------|---------------|
-| `RestrictKeyCase::OnlyCamelCase`  | `firstName`   |
-| `RestrictKeyCase::OnlyPascalCase` | `FirstName`   |
-| `RestrictKeyCase::OnlySnakeCase`  | `first_name`  |
-| `RestrictKeyCase::OnlyKebabCase`  | `first-name`  |
+| Configurator                    | Example       |
+|---------------------------------|---------------|
+| `new RestrictKeysToCamelCase()` | `firstName`   |
+| `new RestrictKeysToPascalCase()`| `FirstName`   |
+| `new RestrictKeysToSnakeCase()` | `first_name`  |
+| `new RestrictKeysToKebabCase()` | `first-name`  |
 
 ```php
 $user = (new \CuyZ\Valinor\MapperBuilder())
-    ->configureWith(\CuyZ\Valinor\Mapper\Configurator\RestrictKeyCase::OnlyCamelCase)
+    ->configureWith(
+        new \CuyZ\Valinor\Mapper\Configurator\RestrictKeysToCamelCase()
+    )
     ->mapper()
     ->map(\My\App\User::class, [
         'firstName' => 'John', // Ok
@@ -39,22 +41,22 @@ $user = (new \CuyZ\Valinor\MapperBuilder())
 
 ## Converting key case
 
-The `ConvertKeyCase` configurator converts the keys of input data before mapping
+Two configurators are available to convert the keys of input data before mapping
 them to object properties or shaped array keys. This allows accepting data with
 a different naming convention than the one used in the PHP codebase.
 
-A typical use case is mapping a JSON API payload that uses `snake_case` keys to
-PHP objects that follow the `camelCase` convention:
+### `ConvertKeysToCamelCase`
 
-| Case                          | Conversion                  |
-|-------------------------------|-----------------------------|
-| `ConvertKeyCase::ToCamelCase` | `first_name` → `firstName`  |
-| `ConvertKeyCase::ToSnakeCase` | `firstName` → `first_name`  |
+| Conversion                   |
+|------------------------------|
+| `first_name` → `firstName`   |
+| `FirstName` → `firstName`    |
+| `first-name` → `firstName`   |
 
 ```php
 $user = (new \CuyZ\Valinor\MapperBuilder())
     ->configureWith(
-        \CuyZ\Valinor\Mapper\Configurator\ConvertKeyCase::ToCamelCase
+        new \CuyZ\Valinor\Mapper\Configurator\ConvertKeysToCamelCase()
     )
     ->mapper()
     ->map(\My\App\User::class, [
@@ -63,16 +65,36 @@ $user = (new \CuyZ\Valinor\MapperBuilder())
     ]);
 ```
 
-This configurator can be combined with `RestrictKeyCase` to both validate and
-convert keys in a single step. When doing so, `RestrictKeyCase` must be
-registered *before* `ConvertKeyCase` so that the validation runs on the original
+### `ConvertKeysToSnakeCase`
+
+| Conversion                    |
+|-------------------------------|
+| `firstName` → `first_name`   |
+| `FirstName` → `first_name`   |
+| `first-name` → `first_name`  |
+
+```php
+$user = (new \CuyZ\Valinor\MapperBuilder())
+    ->configureWith(
+        new \CuyZ\Valinor\Mapper\Configurator\ConvertKeysToSnakeCase()
+    )
+    ->mapper()
+    ->map(\My\App\User::class, [
+        'firstName' => 'John', // mapped to `$first_name`
+        'lastName' => 'Doe',   // mapped to `$last_name`
+    ]);
+```
+
+These configurators can be combined with a [restriction configurator] to both
+validate and convert keys in a single step. The restriction configurator must be
+registered *before* the conversion so that the validation runs on the original
 input keys:
 
 ```php
 $user = (new \CuyZ\Valinor\MapperBuilder())
     ->configureWith(
-        \CuyZ\Valinor\Mapper\Configurator\RestrictKeyCase::OnlySnakeCase,
-        \CuyZ\Valinor\Mapper\Configurator\ConvertKeyCase::ToCamelCase,
+        new \CuyZ\Valinor\Mapper\Configurator\RestrictKeysToSnakeCase(),
+        new \CuyZ\Valinor\Mapper\Configurator\ConvertKeysToCamelCase(),
     )
     ->mapper()
     ->map(\My\App\User::class, [
@@ -80,3 +102,5 @@ $user = (new \CuyZ\Valinor\MapperBuilder())
         'last_name' => 'Doe',
     ]);
 ```
+
+[restriction configurator]: #restricting-key-case
