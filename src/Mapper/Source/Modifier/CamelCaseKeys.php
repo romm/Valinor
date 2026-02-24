@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Mapper\Source\Modifier;
 
+use CuyZ\Valinor\Mapper\Configurator\ConvertKeyCase;
 use IteratorAggregate;
 use Traversable;
 
@@ -16,6 +17,9 @@ use function str_replace;
 use function ucwords;
 
 /**
+ * @deprecated This modifier will be removed in version 3.0, use the
+ *             configurator {@see ConvertKeyCase} instead.
+ *
  * @api
  * @implements IteratorAggregate<mixed>
  */

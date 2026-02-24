@@ -6,11 +6,11 @@ namespace CuyZ\Valinor\Tests\Unit\Library;
 
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Tests\Fake\Cache\FakeCache;
-use PHPUnit\Framework\TestCase;
+use CuyZ\Valinor\Tests\Unit\UnitTestCase;
 use stdClass;
 use Throwable;
 
-final class SettingsTest extends TestCase
+final class SettingsTest extends UnitTestCase
 {
     /**
      * This test is here to detect if the default settings have changed,
@@ -38,11 +38,12 @@ final class SettingsTest extends TestCase
         $settings->allowSuperfluousKeys = true;
         $settings->allowPermissiveTypes = true;
         $settings->mapperConverters[] = [fn (mixed $value): mixed => $value];
+        $settings->keyConverters[] = fn (string $key): string => $key;
         $settings->mapperConverterAttributes[stdClass::class] = null;
         $settings->exceptionFilter = fn (Throwable $e) => throw $e;
         $settings->normalizerTransformers[] = [fn (mixed $value): mixed => $value];
         $settings->normalizerTransformerAttributes[stdClass::class] = null;
 
-        self::assertSame('f0e2abac3a781ec203116ef5248bfbda', $settings->hash());
+        self::assertSame('82a94b1cb67095c55c5720d125de90b1', $settings->hash());
     }
 }
