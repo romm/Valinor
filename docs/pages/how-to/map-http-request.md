@@ -14,7 +14,14 @@ This gives controllers a clean, type-safe signature without coupling to a
 framework's request object, while benefiting from the library's validation and
 error handling.
 
-!!! note
+Normal mapping rules apply there: parameters are required unless they have a
+default value.
+
+Route and query parameter values coming from an HTTP request are typically
+strings. The mapper automatically handles scalar value casting for these
+parameters: a string `"42"` will be properly mapped to an `int` parameter.
+
+!!! hint
 
     The [Valinor Symfony Bundle] provides a native integration with Symfony's
     HTTP Foundation component.
@@ -71,15 +78,6 @@ $arguments = (new MapperBuilder())
 
 $response = $controller(...$arguments);
 ```
-
-Query parameters follow the normal mapping rules: they are required unless the
-parameter has a default value.
-
-!!! note
-
-    Route and query parameter values coming from an HTTP request are typically
-    strings. The mapper automatically handles scalar value casting for these
-    parameters: a string `"42"` will be properly mapped to an `int` parameter.
 
 ## POST request example
 
@@ -169,8 +167,8 @@ The same approach works with `#[FromBody(mapAll: true)]` for body values.
 ## Mapping to an object
 
 Instead of mapping to a callable's arguments, an `HttpRequest` can be mapped
-directly to an object using the standard `mapper()`. The attributes work the
-same way on constructor parameters or promoted properties.
+directly to an object. The attributes work the same way on constructor
+parameters or promoted properties.
 
 ```php
 use CuyZ\Valinor\Mapper\Http\FromBody;
@@ -268,6 +266,41 @@ $arguments = (new MapperBuilder())
 
 // $arguments['request'] is the original PSR-7 request instance
 ```
+
+## Enforcing and converting key case
+
+APIs often use a different naming convention than the PHP codebase — for
+instance, a JSON payload with `snake_case` keys mapped to `camelCase`
+properties. Two families of configurators help with this:
+
+- [RestrictKeysTo*Case] configurators reject keys that do not match the
+  expected format (e.g. `snake_case`, `camelCase`), raising a mapping error.
+- [ConvertKeysTo*Case] configurators convert input keys to the target format
+  before mapping (e.g. `first_name` → `firstName`).
+
+They can be combined so that the restriction validates the original keys and the
+conversion remaps them. Both work with HTTP request mapping.
+
+```php
+use CuyZ\Valinor\Mapper\Configurator\ConvertKeysToCamelCase;
+use CuyZ\Valinor\Mapper\Configurator\RestrictKeysToSnakeCase;
+use CuyZ\Valinor\MapperBuilder;
+
+$controllerArguments = (new MapperBuilder())
+    ->configureWith(
+        new RestrictKeysToSnakeCase(),
+        new ConvertKeysToCamelCase(),
+    )
+    ->argumentsMapper()
+    ->mapArguments($controller, $httpRequest);
+```
+
+Read the [common mapper configurators chapter] for the full list of available
+configurators and detailed usage.
+
+[RestrictKeysTo*Case]: common-mapper-configurators.md#restricting-key-case
+[ConvertKeysTo*Case]: common-mapper-configurators.md#converting-key-case
+[common mapper configurators chapter]: common-mapper-configurators.md
 
 ## Error handling
 
