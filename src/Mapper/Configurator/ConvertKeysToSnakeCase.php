@@ -34,9 +34,9 @@ use function strtolower;
  * be registered *before* the conversion so that the validation runs on the
  * original input keys.
  *
- *  - {@see RestrictKeysToCamelCase}
- *  - {@see RestrictKeysToKebabCase}
- *  - {@see RestrictKeysToPascalCase}
+ * - {@see RestrictKeysToCamelCase}
+ * - {@see RestrictKeysToKebabCase}
+ * - {@see RestrictKeysToPascalCase}
  *
  * ```
  * use CuyZ\Valinor\MapperBuilder;
