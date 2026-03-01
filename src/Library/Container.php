@@ -22,6 +22,8 @@ use CuyZ\Valinor\Definition\Repository\Reflection\ReflectionAttributesRepository
 use CuyZ\Valinor\Definition\Repository\Reflection\ReflectionClassDefinitionRepository;
 use CuyZ\Valinor\Definition\Repository\Reflection\ReflectionFunctionDefinitionRepository;
 use CuyZ\Valinor\Mapper\ArgumentsMapper;
+use CuyZ\Valinor\Mapper\CacheTreeMapper;
+use CuyZ\Valinor\Mapper\Compiler\TodoMapper;
 use CuyZ\Valinor\Mapper\Object\Factory\CircularDependencyDetectorObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\ConstructorObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\DateTimeObjectBuilderFactory;
@@ -77,10 +79,24 @@ final class Container
     public function __construct(Settings $settings)
     {
         $this->factories = [
-            TreeMapper::class => fn () => new TypeTreeMapper(
-                $this->get(TypeParser::class),
-                $this->get(RootNodeBuilder::class),
-            ),
+            TreeMapper::class => function () use ($settings) {
+                if (isset($settings->cache)) {
+                    return new CacheTreeMapper(
+                        $this->get(TypeParser::class),
+                        new RuntimeCache($this->get(Cache::class)), // @phpstan-ignore argument.type
+                        new TodoMapper(
+                            $this->get(ClassDefinitionRepository::class),
+                            $this->get(ObjectBuilderFactory::class),
+                        ),
+                        $settings,
+                    );
+                }
+
+                return new TypeTreeMapper(
+                    $this->get(TypeParser::class),
+                    $this->get(RootNodeBuilder::class),
+                );
+            },
 
             ArgumentsMapper::class => fn () => new TypeArgumentsMapper(
                 $this->get(FunctionDefinitionRepository::class),

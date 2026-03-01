@@ -6,6 +6,7 @@ namespace CuyZ\Valinor\Compiler\Native;
 
 use CuyZ\Valinor\Compiler\Compiler;
 use CuyZ\Valinor\Compiler\Node;
+use CuyZ\Valinor\Type\Type;
 
 /** @internal */
 final class CastNode extends Node
@@ -14,6 +15,11 @@ final class CastNode extends Node
         private string $type,
         private Node $node,
     ) {}
+
+    public static function to(Type $type, Node $node): self
+    {
+        return new self($type->nativeType()->toString(), $node);
+    }
 
     public static function toArray(Node $node): self
     {
