@@ -37,6 +37,8 @@ use CuyZ\Valinor\Mapper\Tree\Builder\ArrayNodeBuilder;
 use CuyZ\Valinor\Mapper\Tree\Builder\ConverterContainer;
 use CuyZ\Valinor\Mapper\Tree\Builder\InterfaceInferringContainer;
 use CuyZ\Valinor\Mapper\Tree\Builder\InterfaceNodeBuilder;
+use CuyZ\Valinor\Mapper\Tree\Builder\KeyConverterContainer;
+use CuyZ\Valinor\Mapper\Tree\Builder\KeyConverterNodeBuilder;
 use CuyZ\Valinor\Mapper\Tree\Builder\ListNodeBuilder;
 use CuyZ\Valinor\Mapper\Tree\Builder\MixedNodeBuilder;
 use CuyZ\Valinor\Mapper\Tree\Builder\NodeBuilder;
@@ -134,13 +136,26 @@ final class Container
                     ),
                 );
 
-                return new ValueConverterNodeBuilder(
+                $builder = new ValueConverterNodeBuilder(
                     $builder,
                     $this->get(ConverterContainer::class),
                     $this->get(ClassDefinitionRepository::class),
                     $this->get(FunctionDefinitionRepository::class),
                     $settings->exceptionFilter,
                 );
+
+                if ($settings->keyConverters !== []) {
+                    $builder = new KeyConverterNodeBuilder(
+                        $builder,
+                        new KeyConverterContainer(
+                            $this->get(FunctionDefinitionRepository::class),
+                            $settings->keyConverters,
+                        ),
+                        $settings->exceptionFilter,
+                    );
+                }
+
+                return $builder;
             },
 
             ConverterContainer::class => fn () => new ConverterContainer(
@@ -222,6 +237,7 @@ final class Container
                     $repository = new CompiledClassDefinitionRepository(
                         $repository,
                         $this->get(Cache::class),
+                        $this->get(TypeFilesWatcher::class),
                         new ClassDefinitionCompiler(),
                     );
                 }
@@ -242,6 +258,7 @@ final class Container
                     $repository = new CompiledFunctionDefinitionRepository(
                         $repository,
                         $this->get(Cache::class),
+                        $this->get(TypeFilesWatcher::class),
                         new FunctionDefinitionCompiler(),
                     );
                 }
@@ -272,10 +289,22 @@ final class Container
 
             Cache::class => fn () => new KeySanitizerCache($settings->cache, $settings),
 
-            TypeFilesWatcher::class => fn () => new TypeFilesWatcher(
-                $settings,
-                $this->get(ClassDefinitionRepository::class),
-            ),
+            TypeFilesWatcher::class => function () use ($settings) {
+                $classDefinitionRepository = new ReflectionClassDefinitionRepository(
+                    $this->get(TypeParserFactory::class),
+                    $settings->allowedAttributes(),
+                );
+
+                $functionDefinitionRepository = new ReflectionFunctionDefinitionRepository(
+                    $this->get(TypeParserFactory::class),
+                    new ReflectionAttributesRepository(
+                        $classDefinitionRepository,
+                        $settings->allowedAttributes(),
+                    ),
+                );
+
+                return new TypeFilesWatcher($settings, $classDefinitionRepository, $functionDefinitionRepository);
+            },
         ];
     }
 
