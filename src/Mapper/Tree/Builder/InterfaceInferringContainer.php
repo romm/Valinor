@@ -52,6 +52,15 @@ final class InterfaceInferringContainer
 
     /**
      * @param class-string $name
+     * @return callable
+     */
+    public function inferCallbackFor(string $name): mixed
+    {
+        return $this->functions->get($name)->callback;
+    }
+
+    /**
+     * @param class-string $name
      * @param array<mixed> $arguments
      */
     public function inferClassFor(string $name, array $arguments): ClassType

@@ -37,13 +37,23 @@ final class TreeMapperRootNode extends Node
         return Node::anonymousClass()
             ->implements(TreeMapper::class)
             ->withArguments(
-                Node::variable('exceptionFilter')
+                Node::variable('exceptionFilter'),
+                Node::variable('constructorCallbacks'),
+            )
+            ->withProperties(
+                Node::propertyDeclaration('constructorCallbacks', 'array'),
+                Node::propertyDeclaration('exceptionFilter', '\\Closure'),
             )
             ->withMethods(
                 MethodNode::constructor()
                     ->withVisibility('public')
                     ->witParameters(
                         Node::parameterDeclaration('exceptionFilter', 'callable'),
+                        Node::parameterDeclaration('constructorCallbacks', 'array'),
+                    )
+                    ->withBody(
+                        Node::property('constructorCallbacks')->assign(Node::variable('constructorCallbacks'))->asExpression(),
+                        Node::property('exceptionFilter')->assign(Node::variable('exceptionFilter'))->asExpression(),
                     ),
                 Node::method('map')
                     ->withVisibility('public')
@@ -51,7 +61,7 @@ final class TreeMapperRootNode extends Node
                         Node::parameterDeclaration('signature', 'string'),
                         Node::parameterDeclaration('source', 'mixed'),
                     )
-                    ->withReturnType($this->type->nativeType()->toString())
+                    ->withReturnType('mixed')
                     ->withBody(
                         Node::variable('context')->assign(Node::newClass(MappingContext::class))->asExpression(),
                         Node::variable('result')->assign(

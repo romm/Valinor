@@ -8,15 +8,25 @@ use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
-use CuyZ\Valinor\Mapper\Tree\Exception\CannotResolveTypeFromUnion;
+use CuyZ\Valinor\Mapper\Tree\Exception\CannotResolveObjectType;
+use CuyZ\Valinor\Type\ClassType;
+use CuyZ\Valinor\Type\FixedType;
+use CuyZ\Valinor\Type\ScalarType;
+use CuyZ\Valinor\Type\Type;
+use CuyZ\Valinor\Type\Types\EnumType;
+use CuyZ\Valinor\Type\Types\InterfaceType;
 use CuyZ\Valinor\Type\Types\NullType;
+use CuyZ\Valinor\Type\Types\ShapedArrayType;
 use CuyZ\Valinor\Type\Types\UnionType;
-use CuyZ\Valinor\Utility\ValueDumper;
+use CuyZ\Valinor\Type\VacantType;
+use CuyZ\Valinor\Utility\TypeHelper;
 
+use function array_map;
+use function count;
 use function hash;
+use function implode;
 use function preg_replace;
 use function strtolower;
 
@@ -46,6 +56,9 @@ final class UnionTypeMapper implements TypeMapper
             return $class;
         }
 
+        // Register a placeholder method to prevent infinite recursion.
+        $class = $class->withMethods(Node::method($methodName));
+
         $nodes = [];
 
         $hasNull = false;
@@ -67,10 +80,34 @@ final class UnionTypeMapper implements TypeMapper
             );
         }
 
-        if (count($nonNullTypes) === 1) {
-            // Only one non-null type: map directly without isolation
-            $subMapper = $typeMapperFactory->for($nonNullTypes[0]);
-            $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+        // Expected signature for unions
+        $expectedSignature = implode(', ', array_map(
+            static fn ($t) => ($t instanceof FixedType || $t instanceof EnumType || $t instanceof VacantType)
+                ? $t->toString()
+                : '`' . $t->toString() . '`',
+            $this->type->types(),
+        ));
+
+        if (count($nonNullTypes) === 1 && ! $hasNull) {
+            // Only one type total (no null): map directly without isolation
+            $subType = $nonNullTypes[0];
+
+            try {
+                $subMapper = $typeMapperFactory->for($subType);
+                $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+            } catch (CannotResolveObjectType) {
+                $nodes[] = Node::return(Node::value(null));
+
+                return $class->withMethods(
+                    Node::method($methodName)
+                        ->witParameters(
+                            Node::parameterDeclaration('source', 'mixed'),
+                            Node::parameterDeclaration('context', MappingContext::class),
+                        )
+                        ->withReturnType('mixed')
+                        ->withBody(...$nodes),
+                );
+            }
 
             $nodes[] = Node::return(
                 $subMapper->formatValueNode(
@@ -78,16 +115,88 @@ final class UnionTypeMapper implements TypeMapper
                     Node::variable('context'),
                 ),
             );
-        } else {
-            // Multiple non-null types: try each in isolated context
-            // For each type, try mapping; if no errors, return immediately
-            // This is a simplified approach: first successful match wins
-            foreach ($nonNullTypes as $i => $subType) {
+        } else if (count($nonNullTypes) === 1) {
+            // Nullable single type: use isolation so error becomes union-level
+            $subType = $nonNullTypes[0];
+
+            try {
                 $subMapper = $typeMapperFactory->for($subType);
                 $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+            } catch (CannotResolveObjectType) {
+                $nodes[] = Node::return(Node::value(null));
+
+                return $class->withMethods(
+                    Node::method($methodName)
+                        ->witParameters(
+                            Node::parameterDeclaration('source', 'mixed'),
+                            Node::parameterDeclaration('context', MappingContext::class),
+                        )
+                        ->withReturnType('mixed')
+                        ->withBody(...$nodes),
+                );
+            }
+
+            // Try mapping in isolation
+            $nodes[] = Node::variable('subContext')->assign(
+                Node::variable('context')->callMethod('isolate'),
+            )->asExpression();
+
+            $nodes[] = Node::variable('subResult')->assign(
+                $subMapper->formatValueNode(
+                    Node::variable('source'),
+                    Node::variable('subContext'),
+                ),
+            )->asExpression();
+
+            // If no errors, return the result
+            $nodes[] = Node::if(
+                condition: Node::negate(Node::variable('subContext')->callMethod('containsErrors')),
+                body: Node::return(Node::variable('subResult')),
+            );
+
+            // Failed — decide whether to propagate specific errors or show union error.
+            // In the runtime, there's also an implicit null mismatch error (priority 1).
+            // If the non-null type has higher priority (>1), its error wins.
+            // If equal priority (=1, e.g. scalar|null), show union-level error.
+            if (TypeHelper::typePriority($subType) > 1) {
+                // Higher priority type: propagate its specific error
+                $nodes[] = Node::variable('context')->callMethod('mergeFrom', [
+                    Node::variable('subContext'),
+                ])->asExpression();
+                $nodes[] = Node::return(Node::variable('subResult'));
+            } else {
+                // Equal priority: show union-level error
+                $nodes[] = Node::variable('context')->callMethod('addMessage', [
+                    Node::newClass(\CuyZ\Valinor\Mapper\Tree\Exception\CannotResolveTypeFromUnion::class, Node::variable('source')),
+                    Node::value($this->type->toString()),
+                    Node::class(\CuyZ\Valinor\Utility\ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
+                    Node::value($expectedSignature),
+                ])->asExpression();
+                $nodes[] = Node::return(Node::value(null));
+            }
+        } else {
+            // Multiple non-null types: try each in isolated context, collect results,
+            // then resolve using the prioritization logic
+            $nodes[] = Node::variable('candidates')->assign(Node::value([]))->asExpression();
+            $candidateIdx = 0;
+
+            foreach ($nonNullTypes as $i => $subType) {
+                try {
+                    $subMapper = $typeMapperFactory->for($subType);
+                    $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+                } catch (CannotResolveObjectType) {
+                    // Interface with no implementation — skip this type
+                    continue;
+                }
 
                 $subCtxVar = "subContext_{$i}";
                 $subResultVar = "subResult_{$i}";
+
+                // Compute compile-time metadata for this type
+                $category = $this->typeCategory($subType);
+                $errorPriority = TypeHelper::typePriority($subType);
+                $scalarPriority = ($subType instanceof ScalarType) ? TypeHelper::scalarTypePriority($subType) : 0;
+                $children = $this->childrenCount($subType, $typeMapperFactory);
 
                 // Create isolated context
                 $nodes[] = Node::variable($subCtxVar)->assign(
@@ -102,32 +211,29 @@ final class UnionTypeMapper implements TypeMapper
                     ),
                 )->asExpression();
 
-                // If no errors, return the result
-                $nodes[] = Node::if(
-                    condition: Node::negate(Node::variable($subCtxVar)->callMethod('containsErrors')),
-                    body: Node::return(Node::variable($subResultVar)),
-                );
+                // Add to candidates using compile-time sequential index
+                $nodes[] = Node::variable('candidates')->key(Node::value($candidateIdx))->assign(
+                    Node::array([
+                        'result' => Node::variable($subResultVar),
+                        'context' => Node::variable($subCtxVar),
+                        'category' => Node::value($category),
+                        'errorPriority' => Node::value($errorPriority),
+                        'scalarPriority' => Node::value($scalarPriority),
+                        'children' => Node::value($children),
+                    ]),
+                )->asExpression();
+                $candidateIdx++;
             }
 
-            // No type matched: add error
-            $nodes[] = Node::if(
-                condition: Node::variable('source')->equals(Node::value(null)),
-                body: [
-                    Node::variable('context')->callMethod('addMessage', [
-                        new MessageNode(new CannotResolveTypeFromUnion(null)),
-                        Node::value($this->type->toString()),
-                        Node::value('*missing*'),
-                    ])->asExpression(),
-                    Node::return(Node::value(null)),
-                ],
+            // Resolve using the union resolution logic
+            $nodes[] = Node::return(
+                Node::variable('context')->callMethod('resolveUnion', [
+                    Node::variable('candidates'),
+                    Node::variable('source'),
+                    Node::value($this->type->toString()),
+                    Node::value($expectedSignature),
+                ]),
             );
-
-            $nodes[] = Node::variable('context')->callMethod('addMessage', [
-                new MessageNode(new CannotResolveTypeFromUnion('value')),
-                Node::value($this->type->toString()),
-                Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-            ])->asExpression();
-            $nodes[] = Node::return(Node::value(null));
         }
 
         return $class->withMethods(
@@ -139,6 +245,39 @@ final class UnionTypeMapper implements TypeMapper
                 ->withReturnType('mixed')
                 ->withBody(...$nodes),
         );
+    }
+
+    private function typeCategory(Type $type): string
+    {
+        if ($type instanceof InterfaceType || $type instanceof ClassType || $type instanceof ShapedArrayType) {
+            return 'struct';
+        }
+
+        if ($type instanceof ScalarType) {
+            return 'scalar';
+        }
+
+        return 'other';
+    }
+
+    private function childrenCount(Type $type, TypeMapperFactory $typeMapperFactory): int
+    {
+        if ($type instanceof ShapedArrayType) {
+            return count($type->elements);
+        }
+
+        if ($type instanceof ClassType) {
+            try {
+                $mapper = $typeMapperFactory->for($type);
+                if ($mapper instanceof ObjectTypeMapper) {
+                    return $mapper->argumentCount();
+                }
+            } catch (\Throwable) {
+                // Ignore errors
+            }
+        }
+
+        return 0;
     }
 
     /**

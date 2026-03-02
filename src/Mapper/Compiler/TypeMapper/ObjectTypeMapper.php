@@ -11,7 +11,11 @@ use CuyZ\Valinor\Definition\ClassDefinition;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
+use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;
 use CuyZ\Valinor\Mapper\Object\ObjectBuilder;
+use CuyZ\Valinor\Mapper\Tree\Message\Message;
+use CuyZ\Valinor\Mapper\Tree\Message\UserlandError;
+use Exception;
 use CuyZ\Valinor\Type\CompositeTraversableType;
 use CuyZ\Valinor\Type\ObjectType;
 use CuyZ\Valinor\Type\Type;
@@ -19,8 +23,10 @@ use CuyZ\Valinor\Type\Types\ShapedArrayElement;
 use CuyZ\Valinor\Type\Types\ShapedArrayType;
 use CuyZ\Valinor\Type\Types\StringValueType;
 use CuyZ\Valinor\Type\Types\UnionType;
+use CuyZ\Valinor\Utility\ValueDumper;
 
 use function array_filter;
+use function array_merge;
 use function count;
 use function hash;
 use function preg_replace;
@@ -53,6 +59,10 @@ final class ObjectTypeMapper implements TypeMapper
             return $class;
         }
 
+        // Register a placeholder method immediately to prevent infinite
+        // recursion when types reference themselves (circular objects).
+        $class = $class->withMethods(Node::method($methodName));
+
         $nodes = [
             Node::if(
                 condition: $this->class->type->compiledAccept(Node::variable('source')),
@@ -67,7 +77,76 @@ final class ObjectTypeMapper implements TypeMapper
             );
         }
 
+        // Apply key converters when source is an array
+        if ($typeMapperFactory->hasKeyConverters()) {
+            $keyConverterKeys = $typeMapperFactory->keyConverterKeys();
+
+            $keyVarNode = Node::variable('ck');
+            $converterNodes = [];
+
+            foreach ($keyConverterKeys as $kcKey) {
+                $converterNodes[] = $keyVarNode->assign(
+                    Node::this()->access('constructorCallbacks')->key(Node::value($kcKey))->call([$keyVarNode]),
+                )->asExpression();
+            }
+
+            $objTryBody = array_merge($converterNodes, [
+                Node::variable('convertedSource')->key($keyVarNode)->assign(
+                    Node::variable('origVal'),
+                )->asExpression(),
+                Node::variable('nameMap')->key($keyVarNode)->assign(
+                    Node::functionCall('strval', [Node::variable('origKey')]),
+                )->asExpression(),
+            ]);
+
+            $nodes[] = Node::if(
+                condition: Node::functionCall('is_array', [Node::variable('source')]),
+                body: [
+                    Node::variable('convertedSource')->assign(Node::value([]))->asExpression(),
+                    Node::variable('nameMap')->assign(Node::value([]))->asExpression(),
+                    Node::forEach(
+                        Node::variable('source'),
+                        'origKey',
+                        'origVal',
+                        [
+                            $keyVarNode->assign(
+                                Node::functionCall('strval', [Node::variable('origKey')]),
+                            )->asExpression(),
+                            Node::try(...$objTryBody)->catches(
+                                Exception::class,
+                                Node::if(
+                                    condition: Node::negate(Node::variable('exception')->instanceOf(Message::class)),
+                                    body: Node::variable('exception')->assign(
+                                        Node::property('exceptionFilter')->wrap()->call([Node::variable('exception')]),
+                                    )->asExpression(),
+                                ),
+                                Node::variable('context')->callMethod('sub', [
+                                    Node::functionCall('strval', [Node::variable('origKey')]),
+                                ])->callMethod('addMessage', [
+                                    Node::variable('exception'),
+                                    Node::value('?'),
+                                    Node::functionCall('strval', [Node::variable('origKey')]),
+                                ])->asExpression(),
+                            ),
+                        ],
+                    ),
+                    Node::variable('source')->assign(Node::variable('convertedSource'))->asExpression(),
+                    Node::variable('context')->callMethod('setNameMap', [
+                        Node::variable('nameMap'),
+                    ])->asExpression(),
+                ],
+            );
+        }
+
         foreach ($this->builders as $builder) {
+            // Register FunctionObjectBuilder callbacks for runtime injection
+            if ($builder instanceof FunctionObjectBuilder) {
+                $typeMapperFactory->registerConstructorCallback(
+                    $builder->callbackKey(),
+                    $builder->callback(),
+                );
+            }
+
             $arguments = $builder->describeArguments();
             $argCount = count($arguments);
 
@@ -98,13 +177,22 @@ final class ObjectTypeMapper implements TypeMapper
                         new StringValueType($argName),
                         $flattenedType,
                         ! $argument->isRequired(),
+                        $argument->attributes(),
                     ),
                 ]);
-                $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType);
+                $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, applyKeyConverters: false);
                 $class = $shapedMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
 
                 // Flat mapper for direct source mapping
                 $flatMapper = $typeMapperFactory->for($flattenedType);
+
+                // Wrap flat mapper with attribute converters from the argument
+                $argAttrConverters = $typeMapperFactory->attributeConvertersFor($argument->attributes(), $flattenedType);
+
+                if ($argAttrConverters !== []) {
+                    $flatMapper = new ConverterTypeMapperWrapper($flattenedType, $flatMapper, $argAttrConverters);
+                }
+
                 $class = $flatMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
 
                 // Default value + build nodes (reused by shaped and flat paths)
@@ -120,7 +208,19 @@ final class ObjectTypeMapper implements TypeMapper
                         )->asExpression(),
                     );
                 }
-                $defaultAndBuildNodes = [...$defaultAndBuildNodes, ...$builder->compile(Node::variable('values'))];
+                $defaultAndBuildNodes = [
+                    Node::try(...$defaultAndBuildNodes, ...$builder->compile(Node::variable('values')))->catches(
+                        UserlandError::class,
+                        Node::variable('context')->callMethod('addMessage', [
+                            Node::property('exceptionFilter')->wrap()->call([
+                                Node::variable('exception')->callMethod('getPrevious'),
+                            ]),
+                            Node::value($this->class->type->toString()),
+                            Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
+                        ])->asExpression(),
+                        Node::return(Node::value(null)),
+                    ),
+                ];
 
                 // Keyed path condition: source is array with the argument name as key
                 $keyedCondition = Node::functionCall('is_array', [Node::variable('source')])
@@ -130,9 +230,14 @@ final class ObjectTypeMapper implements TypeMapper
                     ]));
 
                 if ($argType instanceof CompositeTraversableType) {
-                    $keyedCondition = $keyedCondition->and(
-                        Node::functionCall('count', [Node::variable('source')])->equals(Node::value(1)),
-                    );
+                    if ($settings->allowSuperfluousKeys) {
+                        // When superfluous keys are allowed, always use keyed path if key exists
+                    } else {
+                        // Only use keyed path when source has exactly one key
+                        $keyedCondition = $keyedCondition->and(
+                            Node::functionCall('count', [Node::variable('source')])->equals(Node::value(1)),
+                        );
+                    }
                 } else {
                     // For non-traversable types, also handle empty array via shaped mapper
                     $keyedCondition = $keyedCondition->or(
@@ -178,7 +283,7 @@ final class ObjectTypeMapper implements TypeMapper
             } else {
                 // Multi-argument case: delegate to ShapedArrayTypeMapper
                 $shapedArrayType = $arguments->toShapedArray();
-                $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType);
+                $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, applyKeyConverters: false);
                 $class = $shapedMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
 
                 $nodes[] = Node::variable('values')->assign(
@@ -205,7 +310,17 @@ final class ObjectTypeMapper implements TypeMapper
                     }
                 }
 
-                $nodes = [...$nodes, ...$builder->compile(Node::variable('values'))];
+                $nodes[] = Node::try(...$builder->compile(Node::variable('values')))->catches(
+                    UserlandError::class,
+                    Node::variable('context')->callMethod('addMessage', [
+                        Node::property('exceptionFilter')->wrap()->call([
+                            Node::variable('exception')->callMethod('getPrevious'),
+                        ]),
+                        Node::value($this->class->type->toString()),
+                        Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
+                    ])->asExpression(),
+                    Node::return(Node::value(null)),
+                );
             }
         }
 
@@ -218,6 +333,15 @@ final class ObjectTypeMapper implements TypeMapper
                 ->withReturnType('?' . $this->class->type->nativeType()->toString())
                 ->withBody(...$nodes),
         );
+    }
+
+    /**
+     * Returns the number of constructor arguments for the primary builder.
+     * Used by UnionTypeMapper to compute struct specificity.
+     */
+    public function argumentCount(): int
+    {
+        return count($this->builders[0]->describeArguments());
     }
 
     /**

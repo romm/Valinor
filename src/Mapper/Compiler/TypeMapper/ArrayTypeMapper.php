@@ -49,6 +49,9 @@ final class ArrayTypeMapper implements TypeMapper
             return $class;
         }
 
+        // Register a placeholder method to prevent infinite recursion.
+        $class = $class->withMethods(Node::method($methodName));
+
         $subMapper = $typeMapperFactory->for($this->type->subType());
         $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
 
@@ -59,13 +62,27 @@ final class ArrayTypeMapper implements TypeMapper
                 condition: Node::variable('source')->equals(Node::value(null)),
                 body: Node::variable('source')->assign(Node::value([]))->asExpression(),
             );
+        } else {
+            // Null check with "missing" error body
+            $nodes[] = Node::if(
+                condition: Node::variable('source')->equals(Node::value(null)),
+                body: [
+                    Node::variable('context')->callMethod('addMessage', [
+                        new MessageNode(new SourceMustBeIterable(null)),
+                        Node::value($this->type->toString()),
+                        Node::value('*missing*'),
+                    ])->asExpression(),
+                    Node::return(Node::value(null)),
+                ],
+            );
         }
 
+        // Non-iterable check with value error body (source is non-null here)
         $nodes[] = Node::if(
             condition: Node::negate(Node::functionCall('is_iterable', [Node::variable('source')])),
             body: [
                 Node::variable('context')->callMethod('addMessage', [
-                    new MessageNode(new SourceMustBeIterable(null)),
+                    new MessageNode(new SourceMustBeIterable('value')),
                     Node::value($this->type->toString()),
                     Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
                 ])->asExpression(),
@@ -95,7 +112,7 @@ final class ArrayTypeMapper implements TypeMapper
             Node::if(
                 condition: Node::negate(Node::functionCall('is_string', [Node::variable('key')]))
                     ->and(Node::negate(Node::functionCall('is_int', [Node::variable('key')]))),
-                body: Node::throw(Node::newClass(InvalidIterableKeyType::class, Node::variable('key')))->asExpression(),
+                body: Node::throw(Node::newClass(InvalidIterableKeyType::class, Node::variable('key'), Node::variable('context')->access('path')))->asExpression(),
             ),
             // Map sub-value
             Node::variable('result')->key(Node::variable('key'))->assign(

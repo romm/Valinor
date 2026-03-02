@@ -40,7 +40,12 @@ final class NativeConstructorObjectBuilder implements ObjectBuilder
     public function compile(ComplianceNode $values): array
     {
         return [
-            Node::return(Node::newClass($this->class->name, $values->unpack()))->asExpression(),
+            Node::try(
+                Node::return(Node::newClass($this->class->name, $values->unpack()))->asExpression(),
+            )->catches(
+                exception: Exception::class,
+                body: Node::throw(Node::class(UserlandError::class)->callStaticMethod('from', [Node::variable('exception')]))->asExpression(),
+            ),
         ];
     }
 
