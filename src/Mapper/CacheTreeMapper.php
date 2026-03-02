@@ -9,22 +9,19 @@ use CuyZ\Valinor\Cache\CacheEntry;
 use CuyZ\Valinor\Compiler\Compiler;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
-use CuyZ\Valinor\Mapper\Compiler\TodoMapper;
+use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Compiler\TreeMapperRootNode;
 use CuyZ\Valinor\Mapper\Exception\InvalidMappingTypeSignature;
 use CuyZ\Valinor\Type\Parser\Exception\InvalidType;
 use CuyZ\Valinor\Type\Parser\TypeParser;
 use CuyZ\Valinor\Type\Type;
 
-use function microtime;
-use function var_dump;
-
 final class CacheTreeMapper implements TreeMapper
 {
     public function __construct(
         private TypeParser $typeParser,
         private Cache $cache,
-        private TodoMapper $todoMapper,
+        private TypeMapperFactory $typeMapperFactory,
         private Settings $settings,
     ) {}
 
@@ -32,28 +29,17 @@ final class CacheTreeMapper implements TreeMapper
     {
         $key = "mapper-\0" . $signature;
 
-        //        $this->cache->delete($key); // @todo remove
-
-        $time = microtime(true);
         $mapper = $this->cache->get($key, $this->settings->exceptionFilter);
-//        $mapper = null;
-//        echo "CACHE GET — " . (microtime(true) - $time) * 1000 . 'ms' . PHP_EOL;
 
         if ($mapper) {
-            //            $time = microtime(true);
-            $todo = $mapper->map($signature, $source);
-            //            var_dump("MAPPING — " . (microtime(true) - $time) * 1000 . 'ms');
-
-            return $todo;
+            return $mapper->map($signature, $source);
         }
 
-        //        $time = microtime(true);
         try {
             $type = $this->typeParser->parse($signature);
         } catch (InvalidType $exception) {
             throw new InvalidMappingTypeSignature($signature, $exception);
         }
-        //        var_dump("TYPE PARSING — " . (microtime(true) - $time) * 1000 . 'ms');
 
         $cacheEntry = new CacheEntry($this->compileFor($type)); // @todo files to watch
 
@@ -67,7 +53,7 @@ final class CacheTreeMapper implements TreeMapper
 
     private function compileFor(Type $type): string
     {
-        $rootNode = new TreeMapperRootNode($type, $this->todoMapper, $this->settings);
+        $rootNode = new TreeMapperRootNode($type, $this->typeMapperFactory, $this->settings);
 
         $node = Node::shortClosure($rootNode)
             ->witParameters(

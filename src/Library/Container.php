@@ -23,7 +23,7 @@ use CuyZ\Valinor\Definition\Repository\Reflection\ReflectionClassDefinitionRepos
 use CuyZ\Valinor\Definition\Repository\Reflection\ReflectionFunctionDefinitionRepository;
 use CuyZ\Valinor\Mapper\ArgumentsMapper;
 use CuyZ\Valinor\Mapper\CacheTreeMapper;
-use CuyZ\Valinor\Mapper\Compiler\TodoMapper;
+use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\CircularDependencyDetectorObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\ConstructorObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\DateTimeObjectBuilderFactory;
@@ -86,7 +86,7 @@ final class Container
                     return new CacheTreeMapper(
                         $this->get(TypeParser::class),
                         new RuntimeCache($this->get(Cache::class)), // @phpstan-ignore argument.type
-                        new TodoMapper(
+                        new TypeMapperFactory(
                             $this->get(ClassDefinitionRepository::class),
                             $this->get(ObjectBuilderFactory::class),
                         ),

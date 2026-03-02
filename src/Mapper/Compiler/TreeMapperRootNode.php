@@ -18,16 +18,16 @@ final class TreeMapperRootNode extends Node
 {
     public function __construct(
         private Type $type,
-        private TodoMapper $todoMapper,
+        private TypeMapperFactory $typeMapperFactory,
         private Settings $settings,
     ) {}
 
     public function compile(Compiler $compiler): Compiler
     {
-        $typeMapper = $this->todoMapper->for($this->type);
+        $typeMapper = $this->typeMapperFactory->for($this->type);
 
         $classNode = $this->mapperClassNode($typeMapper);
-        $classNode = $typeMapper->manipulateMapperClass($classNode, $this->settings, $this->todoMapper);
+        $classNode = $typeMapper->manipulateMapperClass($classNode, $this->settings, $this->typeMapperFactory);
 
         return $compiler->compile($classNode);
     }
@@ -53,7 +53,7 @@ final class TreeMapperRootNode extends Node
                     )
                     ->withReturnType($this->type->nativeType()->toString())
                     ->withBody(
-                        Node::variable('context')->assign(Node::newClass(TodoContext::class))->asExpression(),
+                        Node::variable('context')->assign(Node::newClass(MappingContext::class))->asExpression(),
                         Node::variable('result')->assign(
                             $typeMapper->formatValueNode(
                                 Node::variable('source'),

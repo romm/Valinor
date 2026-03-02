@@ -12,11 +12,10 @@ use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\InvalidIterableKeyType;
-use CuyZ\Valinor\Mapper\Tree\Exception\SourceIsEmptyArray;
+use CuyZ\Valinor\Mapper\Tree\Exception\SourceIsEmptyList;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceMustBeIterable;
-use CuyZ\Valinor\Type\Types\ArrayType;
-use CuyZ\Valinor\Type\Types\IterableType;
-use CuyZ\Valinor\Type\Types\NonEmptyArrayType;
+use CuyZ\Valinor\Type\Types\ListType;
+use CuyZ\Valinor\Type\Types\NonEmptyListType;
 use CuyZ\Valinor\Utility\ValueDumper;
 
 use function hash;
@@ -24,10 +23,10 @@ use function preg_replace;
 use function strtolower;
 
 /** @internal */
-final class ArrayTypeMapper implements TypeMapper
+final class ListTypeMapper implements TypeMapper
 {
     public function __construct(
-        private ArrayType|NonEmptyArrayType|IterableType $type,
+        private ListType|NonEmptyListType $type,
     ) {}
 
     public function formatValueNode(ComplianceNode $value, ComplianceNode $context): Node
@@ -61,6 +60,7 @@ final class ArrayTypeMapper implements TypeMapper
             );
         }
 
+        // Check source is iterable
         $nodes[] = Node::if(
             condition: Node::negate(Node::functionCall('is_iterable', [Node::variable('source')])),
             body: [
@@ -73,12 +73,13 @@ final class ArrayTypeMapper implements TypeMapper
             ],
         );
 
-        if ($this->type instanceof NonEmptyArrayType) {
+        // Check non-empty for NonEmptyListType
+        if ($this->type instanceof NonEmptyListType) {
             $nodes[] = Node::if(
                 condition: Node::variable('source')->equals(Node::value([])),
                 body: [
                     Node::variable('context')->callMethod('addMessage', [
-                        new MessageNode(new SourceIsEmptyArray()),
+                        new MessageNode(new SourceIsEmptyList()),
                         Node::value($this->type->toString()),
                         Node::value('[]'),
                     ])->asExpression(),
@@ -90,23 +91,25 @@ final class ArrayTypeMapper implements TypeMapper
         // Initialize result array
         $nodes[] = Node::variable('result')->assign(Node::value([]))->asExpression();
 
-        // forEach loop: validate keys and map sub-values
-        $forEachBody = [
-            Node::if(
-                condition: Node::negate(Node::functionCall('is_string', [Node::variable('key')]))
-                    ->and(Node::negate(Node::functionCall('is_int', [Node::variable('key')]))),
-                body: Node::throw(Node::newClass(InvalidIterableKeyType::class, Node::variable('key')))->asExpression(),
+        // forEach loop over source: validate keys and map values
+        $forEachBody = [];
+
+        // Validate key type
+        $forEachBody[] = Node::if(
+            condition: Node::negate(Node::functionCall('is_string', [Node::variable('key')]))
+                ->and(Node::negate(Node::functionCall('is_int', [Node::variable('key')]))),
+            body: Node::throw(Node::newClass(InvalidIterableKeyType::class, Node::variable('key')))->asExpression(),
+        );
+
+        // Map value through sub-type mapper
+        $forEachBody[] = Node::variable('result')->key(Node::variable('key'))->assign(
+            $subMapper->formatValueNode(
+                Node::variable('value'),
+                Node::variable('context')->callMethod('sub', [
+                    Node::functionCall('strval', [Node::variable('key')]),
+                ]),
             ),
-            // Map sub-value
-            Node::variable('result')->key(Node::variable('key'))->assign(
-                $subMapper->formatValueNode(
-                    Node::variable('value'),
-                    Node::variable('context')->callMethod('sub', [
-                        Node::functionCall('strval', [Node::variable('key')]),
-                    ]),
-                ),
-            )->asExpression(),
-        ];
+        )->asExpression();
 
         $nodes[] = Node::forEach(
             value: Node::variable('source'),
@@ -121,7 +124,10 @@ final class ArrayTypeMapper implements TypeMapper
             body: Node::return(Node::value(null)),
         );
 
-        $nodes[] = Node::return(Node::variable('result'));
+        // Return array_values to ensure sequential list keys
+        $nodes[] = Node::return(
+            Node::functionCall('array_values', [Node::variable('result')]),
+        );
 
         return $class->withMethods(
             Node::method($methodName)
@@ -129,7 +135,7 @@ final class ArrayTypeMapper implements TypeMapper
                     Node::parameterDeclaration('source', 'mixed'),
                     Node::parameterDeclaration('context', MappingContext::class),
                 )
-                ->withReturnType('?' . $this->type->nativeType()->toString())
+                ->withReturnType('?array')
                 ->withBody(...$nodes),
         );
     }
@@ -141,6 +147,6 @@ final class ArrayTypeMapper implements TypeMapper
     {
         $slug = preg_replace('/[^a-z0-9]+/', '_', strtolower($this->type->toString()));
 
-        return "map_array_{$slug}_" . hash('crc32', $this->type->toString());
+        return "map_list_{$slug}_" . hash('crc32', $this->type->toString());
     }
 }

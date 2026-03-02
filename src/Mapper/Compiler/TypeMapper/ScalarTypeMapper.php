@@ -9,9 +9,11 @@ use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
-use CuyZ\Valinor\Mapper\Compiler\TodoContext;
-use CuyZ\Valinor\Mapper\Compiler\TodoMapper;
+use CuyZ\Valinor\Mapper\Compiler\MappingContext;
+use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
+use CuyZ\Valinor\Type\FloatType;
 use CuyZ\Valinor\Type\ScalarType;
+use CuyZ\Valinor\Type\Types\UnionType;
 
 use CuyZ\Valinor\Utility\ValueDumper;
 
@@ -36,7 +38,7 @@ final class ScalarTypeMapper implements TypeMapper
         );
     }
 
-    public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TodoMapper $todoMapper): AnonymousClassNode
+    public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
         $methodName = $this->methodName();
 
@@ -44,8 +46,21 @@ final class ScalarTypeMapper implements TypeMapper
             return $class;
         }
 
+        $nodes = [];
+
+        // Int-to-float auto-conversion (mirrors Shell::castFloatValue)
+        if ($this->type instanceof FloatType) {
+            $nodes[] = Node::if(
+                condition: Node::functionCall('is_int', [Node::variable('source')]),
+                body: Node::variable('source')->assign(
+                    Node::variable('source')->castTo($this->type),
+                )->asExpression(),
+            );
+        }
+
         if (! $settings->allowScalarValueCasting) {
             $nodes = [
+                ...$nodes,
                 Node::if(
                     condition: Node::negate($this->type->compiledAccept(Node::variable('source'))),
                     body: [
@@ -64,6 +79,7 @@ final class ScalarTypeMapper implements TypeMapper
             ];
         } else {
             $nodes = [
+                ...$nodes,
                 Node::if(
                     condition: $this->type->compiledAccept(Node::variable('source')),
                     body: Node::return(Node::variable('source')),
@@ -85,11 +101,22 @@ final class ScalarTypeMapper implements TypeMapper
             Node::method($methodName)
                 ->witParameters(
                     Node::parameterDeclaration('source', 'mixed'),
-                    Node::parameterDeclaration('context', TodoContext::class),
+                    Node::parameterDeclaration('context', MappingContext::class),
                 )
-                ->withReturnType('?' . $this->type->nativeType()->toString())
+                ->withReturnType($this->nullableReturnType())
                 ->withBody(...$nodes),
         );
+    }
+
+    private function nullableReturnType(): string
+    {
+        $nativeType = $this->type->nativeType();
+
+        if ($nativeType instanceof UnionType) {
+            return $nativeType->toString() . '|null';
+        }
+
+        return '?' . $nativeType->toString();
     }
 
     /**
