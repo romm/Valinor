@@ -66,6 +66,16 @@ final class NativeFloatType implements FloatType
             ->build();
     }
 
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    {
+        return Node::functionCall('is_numeric', [$node]);
+    }
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode
+    {
+        return $node->castTo($this);
+    }
+
     public function nativeType(): NativeFloatType
     {
         return $this;

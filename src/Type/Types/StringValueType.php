@@ -72,6 +72,22 @@ final class StringValueType implements StringType, FixedType
         return $this->value;
     }
 
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    {
+        return Node::logicalOr(
+            Node::functionCall('is_string', [$node]),
+            Node::functionCall('is_numeric', [$node]),
+            $node->instanceOf(\Stringable::class),
+        )->wrap()->and(
+            $node->castTo(NativeStringType::get())->equals(Node::value($this->value))
+        );
+    }
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode
+    {
+        return Node::value($this->value);
+    }
+
     public function value(): string
     {
         return $this->value;

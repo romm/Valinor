@@ -73,6 +73,22 @@ final class NonEmptyStringType implements StringType
             ->build();
     }
 
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    {
+        return Node::logicalOr(
+            Node::functionCall('is_string', [$node]),
+            Node::functionCall('is_numeric', [$node]),
+            $node->instanceOf(\Stringable::class),
+        )->wrap()->and(
+            $node->castTo($this)->different(Node::value(''))
+        );
+    }
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode
+    {
+        return $node->castTo($this);
+    }
+
     public function nativeType(): NativeStringType
     {
         return NativeStringType::get();

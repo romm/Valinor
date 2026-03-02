@@ -140,6 +140,26 @@ final class ClassStringType implements StringType, CompositeType
         return $selfTypes->inferGenericsFrom($otherTypes, $generics);
     }
 
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    {
+        $isStringOrStringable = Node::logicalOr(
+            Node::functionCall('is_string', [$node]),
+            $node->instanceOf(Stringable::class),
+        );
+
+        // After casting to string, the accepts check determines if it's a valid class-string
+        $castNode = $node->castTo(NativeStringType::get());
+
+        return $isStringOrStringable->wrap()->and(
+            $this->compiledAccept($castNode),
+        );
+    }
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode
+    {
+        return $node->castTo(NativeStringType::get());
+    }
+
     public function canCast(mixed $value): bool
     {
         return (is_string($value) || $value instanceof Stringable)

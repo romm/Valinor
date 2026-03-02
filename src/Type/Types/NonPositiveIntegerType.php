@@ -74,6 +74,21 @@ final class NonPositiveIntegerType implements IntegerType
             ->build();
     }
 
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    {
+        return Node::negate(Node::functionCall('is_bool', [$node]))
+            ->and(
+                Node::functionCall('filter_var', [$node, Node::value(FILTER_VALIDATE_INT)])
+                    ->different(Node::value(false))
+            )
+            ->and($node->isLessOrEqualsTo(Node::value(0)));
+    }
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode
+    {
+        return $node->castTo($this);
+    }
+
     public function nativeType(): NativeIntegerType
     {
         return NativeIntegerType::get();

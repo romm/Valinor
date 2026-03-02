@@ -14,7 +14,6 @@ use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Type\FloatType;
 use CuyZ\Valinor\Type\ScalarType;
 use CuyZ\Valinor\Type\Types\UnionType;
-
 use CuyZ\Valinor\Utility\ValueDumper;
 
 final class ScalarTypeMapper implements TypeMapper
@@ -75,12 +74,6 @@ final class ScalarTypeMapper implements TypeMapper
                 Node::return(Node::variable('source')),
             ];
         } else {
-            // Register canCast and cast callbacks for runtime use
-            $canCastKey = 'canCast_' . hash('crc32', $this->type->toString());
-            $castKey = 'cast_' . hash('crc32', $this->type->toString());
-            $typeMapperFactory->callbackRegistry()->register($canCastKey, $this->type->canCast(...));
-            $typeMapperFactory->callbackRegistry()->register($castKey, $this->type->cast(...));
-
             $nodes = [
                 ...$nodes,
                 Node::if(
@@ -88,9 +81,9 @@ final class ScalarTypeMapper implements TypeMapper
                     body: Node::return(Node::variable('source')),
                 ),
                 Node::if(
-                    condition: Node::this()->access('constructorCallbacks')->key(Node::value($canCastKey))->call([Node::variable('source')]),
+                    condition: $this->type->compiledCanCast(Node::variable('source')),
                     body: Node::return(
-                        Node::this()->access('constructorCallbacks')->key(Node::value($castKey))->call([Node::variable('source')]),
+                        $this->type->compiledCast(Node::variable('source')),
                     ),
                 ),
                 Node::variable('context')->callMethod('addMessage', [

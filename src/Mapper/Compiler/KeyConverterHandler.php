@@ -32,13 +32,13 @@ final class KeyConverterHandler
     }
 
     /**
-     * Validate and register all key converters, returning their callback keys.
+     * Validate all key converters, returning their indices.
      *
-     * @return list<string> Callback keys
+     * @return list<int> Converter indices
      */
-    public function keyConverterKeys(ConstructorCallbackRegistry $registry): array
+    public function keyConverterIndices(): array
     {
-        $keys = [];
+        $indices = [];
 
         foreach ($this->keyConverters as $index => $keyConverter) {
             // Validate key converter (same as KeyConverterContainer::checkConverter)
@@ -58,11 +58,9 @@ final class KeyConverterHandler
                 }
             }
 
-            $key = 'key_conv_' . $index;
-            $registry->register($key, $keyConverter);
-            $keys[] = $key;
+            $indices[] = $index;
         }
 
-        return $keys;
+        return $indices;
     }
 }

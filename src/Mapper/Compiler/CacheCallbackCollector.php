@@ -6,7 +6,6 @@ namespace CuyZ\Valinor\Mapper\Compiler;
 
 use CuyZ\Valinor\Definition\Repository\ClassDefinitionRepository;
 use CuyZ\Valinor\Definition\Attributes;
-use CuyZ\Valinor\Mapper\Compiler\TypeMapper\InterfaceTypeMapper;
 use CuyZ\Valinor\Mapper\Object\Factory\ObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;
 use CuyZ\Valinor\Mapper\Tree\Builder\ConverterContainer;
@@ -14,13 +13,10 @@ use CuyZ\Valinor\Mapper\Tree\Builder\InterfaceInferringContainer;
 use CuyZ\Valinor\Mapper\Tree\Exception\ObjectImplementationCallbackError;
 use CuyZ\Valinor\Type\CompositeTraversableType;
 use CuyZ\Valinor\Type\ObjectType;
-use CuyZ\Valinor\Type\ScalarType;
 use CuyZ\Valinor\Type\Type;
 use CuyZ\Valinor\Type\Types\InterfaceType;
 use CuyZ\Valinor\Type\Types\ShapedArrayType;
 use CuyZ\Valinor\Type\Types\UnionType;
-
-use function hash;
 
 /**
  * Walks type trees and re-registers callbacks when loading from cache.
@@ -35,7 +31,6 @@ final class CacheCallbackCollector
         private ClassDefinitionRepository $classDefinitionRepository,
         private ObjectBuilderFactory $objectBuilderFactory,
         private InterfaceInferringContainer $interfaceInferringContainer,
-        private ConverterAnalyzer $converterAnalyzer,
     ) {}
 
     /**
@@ -46,7 +41,7 @@ final class CacheCallbackCollector
      */
     public function collectCallbacksForType(
         Type $type,
-        ConstructorCallbackRegistry $registry,
+        \Closure $register,
         array &$visited = []
     ): void {
         $key = $type->toString();
@@ -61,14 +56,10 @@ final class CacheCallbackCollector
             $class = $this->classDefinitionRepository->for($type);
 
             // Register class-level attribute converter callbacks
-            $this->collectAttributeConverterCallbacks($class->attributes, $registry);
+            $this->collectAttributeConverterCallbacks($class->attributes, $register);
 
-            // Handle interface inferring: register infer callback and walk implementations
+            // Handle interface inferring: walk implementations for their callbacks
             if ($this->interfaceInferringContainer->has($class->name)) {
-                $callbackKey = InterfaceTypeMapper::inferCallbackKey($class->name);
-                $callback = $this->interfaceInferringContainer->inferCallbackFor($class->name);
-                $registry->register($callbackKey, $callback);
-
                 try {
                     $implementations = $this->interfaceInferringContainer->classImplementationsFor($class->name);
                 } catch (ObjectImplementationCallbackError) {
@@ -77,11 +68,8 @@ final class CacheCallbackCollector
                     return;
                 }
 
-                $implsKey = InterfaceTypeMapper::implementationsKey($class->name);
-                $registry->register($implsKey, $implementations);
-
                 foreach ($implementations as $implType) {
-                    $this->collectCallbacksForType($implType, $registry, $visited);
+                    $this->collectCallbacksForType($implType, $register, $visited);
                 }
                 return;
             }
@@ -97,34 +85,26 @@ final class CacheCallbackCollector
 
             foreach ($builders as $builder) {
                 if ($builder instanceof FunctionObjectBuilder) {
-                    $registry->register($builder->callbackKey(), $builder->callback());
+                    $register($builder->callbackKey(), $builder->callback());
                 }
 
                 // Walk argument types and register attribute converter callbacks
                 foreach ($builder->describeArguments() as $argument) {
-                    $this->collectAttributeConverterCallbacks($argument->attributes(), $registry);
-                    $this->collectCallbacksForType($argument->type(), $registry, $visited);
+                    $this->collectAttributeConverterCallbacks($argument->attributes(), $register);
+                    $this->collectCallbacksForType($argument->type(), $register, $visited);
                 }
             }
         } elseif ($type instanceof UnionType) {
             foreach ($type->types() as $subType) {
-                $this->collectCallbacksForType($subType, $registry, $visited);
+                $this->collectCallbacksForType($subType, $register, $visited);
             }
         } elseif ($type instanceof ShapedArrayType) {
             foreach ($type->elements as $element) {
-                $this->collectAttributeConverterCallbacks($element->attributes(), $registry);
-                $this->collectCallbacksForType($element->type(), $registry, $visited);
+                $this->collectAttributeConverterCallbacks($element->attributes(), $register);
+                $this->collectCallbacksForType($element->type(), $register, $visited);
             }
         } elseif ($type instanceof CompositeTraversableType) {
-            $this->collectCallbacksForType($type->subType(), $registry, $visited);
-        } elseif ($type instanceof ScalarType) {
-            // Register canCast/cast callbacks for scalar types.
-            // These are needed when allowScalarValueCasting is enabled;
-            // registering them unconditionally is harmless since unused keys are ignored.
-            $canCastKey = 'canCast_' . hash('crc32', $type->toString());
-            $castKey = 'cast_' . hash('crc32', $type->toString());
-            $registry->register($canCastKey, $type->canCast(...));
-            $registry->register($castKey, $type->cast(...));
+            $this->collectCallbacksForType($type->subType(), $register, $visited);
         }
     }
 
@@ -132,7 +112,7 @@ final class CacheCallbackCollector
      * Register attribute converter callables as constructor callbacks.
      * Used when loading from cache to restore attribute converter callbacks.
      */
-    private function collectAttributeConverterCallbacks(Attributes $attributes, ConstructorCallbackRegistry $registry): void
+    private function collectAttributeConverterCallbacks(Attributes $attributes, \Closure $register): void
     {
         if ($attributes->count() === 0) {
             return;
@@ -143,7 +123,7 @@ final class CacheCallbackCollector
         foreach ($converterAttributes->toArray() as $attrDef) {
             $callbackKey = ConverterAnalyzer::attributeConverterKey($attrDef);
             $callable = $attrDef->instantiate()->map(...);
-            $registry->register($callbackKey, $callable);
+            $register($callbackKey, $callable);
         }
     }
 

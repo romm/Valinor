@@ -46,75 +46,53 @@ use RuntimeException;
 
 final class TypeMapperFactory
 {
+    /** @var array<string, mixed> */
+    private array $constructorCallbacks = [];
+
     public function __construct(
         private ClassDefinitionRepository $classDefinitionRepository,
         private ObjectBuilderFactory $objectBuilderFactory,
         private InterfaceInferringContainer $interfaceInferringContainer,
         private TypeDumper $typeDumper,
-        private ConstructorCallbackRegistry $callbackRegistry,
         private ConverterAnalyzer $converterAnalyzer,
         private KeyConverterHandler $keyConverterHandler,
     ) {}
 
-    /**
-     * Dump a type to a human-readable string (used in error messages).
-     */
+    public function registerCallback(string $key, mixed $callback): void
+    {
+        $this->constructorCallbacks[$key] = $callback;
+    }
+
+    /** @return array<string, mixed> */
+    public function constructorCallbacks(): array
+    {
+        return $this->constructorCallbacks;
+    }
+
+    public function resetCallbacks(): void
+    {
+        $this->constructorCallbacks = [];
+    }
+
     public function dumpType(Type $type): string
     {
         return $this->typeDumper->dump($type);
     }
 
-    /**
-     * Get the infer callback for an interface type.
-     *
-     * @param class-string $name
-     * @return callable
-     */
-    public function inferCallbackFor(string $name): mixed
-    {
-        return $this->interfaceInferringContainer->inferCallbackFor($name);
-    }
-
-    /**
-     * Get the callback registry.
-     */
-    public function callbackRegistry(): ConstructorCallbackRegistry
-    {
-        return $this->callbackRegistry;
-    }
-
-    /**
-     * Get the converter analyzer.
-     */
     public function converterAnalyzer(): ConverterAnalyzer
     {
         return $this->converterAnalyzer;
     }
 
-    /**
-     * Get the key converter handler.
-     */
-    public function keyConverterHandler(): KeyConverterHandler
-    {
-        return $this->keyConverterHandler;
-    }
-
-    /**
-     * Check if key converters are registered.
-     */
     public function hasKeyConverters(): bool
     {
         return $this->keyConverterHandler->hasKeyConverters();
     }
 
-    /**
-     * Get key converter keys (validates and registers them).
-     *
-     * @return list<string>
-     */
-    public function keyConverterKeys(): array
+    /** @return list<int> */
+    public function keyConverterIndices(): array
     {
-        return $this->keyConverterHandler->keyConverterKeys($this->callbackRegistry);
+        return $this->keyConverterHandler->keyConverterIndices();
     }
 
     /**
@@ -130,7 +108,7 @@ final class TypeMapperFactory
 
         // Wrap with converter logic if converters are registered and applicable
         if ($applyConverters) {
-            $matchingConverters = $this->converterAnalyzer->matchingConvertersFor($type, $this->callbackRegistry);
+            $matchingConverters = $this->converterAnalyzer->matchingConvertersFor($type);
 
             if ($matchingConverters !== []) {
                 $typeMapper = new ConverterTypeMapperWrapper($type, $typeMapper, $matchingConverters);
@@ -142,7 +120,7 @@ final class TypeMapperFactory
             $class = $this->classDefinitionRepository->for($type);
 
             if (! $class->isAbstract && ! $this->interfaceInferringContainer->has($class->name)) {
-                $classAttrConverters = $this->converterAnalyzer->attributeConvertersFor($class->attributes, $type, $this->callbackRegistry);
+                $classAttrConverters = $this->converterAnalyzer->attributeConvertersFor($class->attributes, $type, $this->registerCallback(...));
 
                 if ($classAttrConverters !== []) {
                     $typeMapper = new ConverterTypeMapperWrapper($type, $typeMapper, $classAttrConverters);

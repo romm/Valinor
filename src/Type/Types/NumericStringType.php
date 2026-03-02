@@ -77,6 +77,22 @@ final class NumericStringType implements StringType
             ->build();
     }
 
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    {
+        $valueNode = Node::ternary(
+            $node->instanceOf(\Stringable::class),
+            $node->castTo($this),
+            $node,
+        );
+
+        return Node::functionCall('is_numeric', [$valueNode]);
+    }
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode
+    {
+        return $node->castTo($this);
+    }
+
     public function nativeType(): NativeStringType
     {
         return NativeStringType::get();

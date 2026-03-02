@@ -81,6 +81,26 @@ final class BooleanValueType implements BooleanType, FixedType
             ->build();
     }
 
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    {
+        if ($this->value) {
+            return $node->equals(Node::value(true))
+                ->or($node->equals(Node::value('1')))
+                ->or($node->equals(Node::value(1)))
+                ->or($node->equals(Node::value('true')));
+        }
+
+        return $node->equals(Node::value(false))
+            ->or($node->equals(Node::value('0')))
+            ->or($node->equals(Node::value(0)))
+            ->or($node->equals(Node::value('false')));
+    }
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode
+    {
+        return Node::value($this->value);
+    }
+
     public function value(): bool
     {
         return $this->value;

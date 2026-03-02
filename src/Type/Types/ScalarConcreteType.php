@@ -46,6 +46,24 @@ final class ScalarConcreteType implements ScalarType
         return $generics;
     }
 
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    {
+        return Node::logicalOr(
+            Node::functionCall('is_scalar', [$node]),
+            $node->instanceOf(\Stringable::class),
+        );
+    }
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode
+    {
+        // If Stringable, cast to string; otherwise return as-is (already scalar)
+        return Node::ternary(
+            $node->instanceOf(\Stringable::class),
+            $node->castTo(NativeStringType::get()),
+            $node,
+        )->wrap();
+    }
+
     public function canCast(mixed $value): bool
     {
         return is_scalar($value) || $value instanceof Stringable;

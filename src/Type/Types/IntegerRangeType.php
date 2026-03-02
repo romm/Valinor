@@ -122,6 +122,32 @@ final class IntegerRangeType implements IntegerType
             ->build();
     }
 
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    {
+        $trimmedValue = Node::ternary(
+            Node::functionCall('is_string', [$node])->and($node->different(Node::value(''))),
+            Node::ternary(
+                Node::functionCall('ltrim', [$node, Node::value('0')])->different(Node::value('')),
+                Node::functionCall('ltrim', [$node, Node::value('0')]),
+                Node::value('0'),
+            ),
+            $node,
+        );
+
+        return Node::negate(Node::functionCall('is_bool', [$node]))
+            ->and(
+                Node::functionCall('filter_var', [$trimmedValue, Node::value(FILTER_VALIDATE_INT)])
+                    ->different(Node::value(false))
+            )
+            ->and($node->isGreaterOrEqualsTo(Node::value($this->min)))
+            ->and($node->isLessOrEqualsTo(Node::value($this->max)));
+    }
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode
+    {
+        return $node->castTo($this);
+    }
+
     public function min(): int
     {
         return $this->min;

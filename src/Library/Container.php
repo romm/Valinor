@@ -24,7 +24,6 @@ use CuyZ\Valinor\Definition\Repository\Reflection\ReflectionFunctionDefinitionRe
 use CuyZ\Valinor\Mapper\ArgumentsMapper;
 use CuyZ\Valinor\Mapper\CacheTreeMapper;
 use CuyZ\Valinor\Mapper\Compiler\CacheCallbackCollector;
-use CuyZ\Valinor\Mapper\Compiler\ConstructorCallbackRegistry;
 use CuyZ\Valinor\Mapper\Compiler\ConverterAnalyzer;
 use CuyZ\Valinor\Mapper\Compiler\KeyConverterHandler;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
@@ -107,12 +106,9 @@ final class Container
                 $this->get(ObjectBuilderFactory::class),
                 $this->get(InterfaceInferringContainer::class),
                 $this->get(TypeDumper::class),
-                $this->get(ConstructorCallbackRegistry::class),
                 $this->get(ConverterAnalyzer::class),
                 $this->get(KeyConverterHandler::class),
             ),
-
-            ConstructorCallbackRegistry::class => fn () => new ConstructorCallbackRegistry(),
 
             ConverterAnalyzer::class => function () use ($settings) {
                 return new ConverterAnalyzer(
@@ -132,7 +128,6 @@ final class Container
                 $this->get(ClassDefinitionRepository::class),
                 $this->get(ObjectBuilderFactory::class),
                 $this->get(InterfaceInferringContainer::class),
-                $this->get(ConverterAnalyzer::class),
             ),
 
             ArgumentsMapper::class => fn () => new TypeArgumentsMapper(

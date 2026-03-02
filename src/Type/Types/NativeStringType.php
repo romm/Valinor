@@ -73,6 +73,18 @@ final class NativeStringType implements StringType
             ->build();
     }
 
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    {
+        return Node::functionCall('is_string', [$node])
+            ->or(Node::functionCall('is_numeric', [$node]))
+            ->or($node->instanceOf(\Stringable::class));
+    }
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode
+    {
+        return $node->castTo($this);
+    }
+
     public function nativeType(): NativeStringType
     {
         return $this;

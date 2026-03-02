@@ -39,10 +39,16 @@ final class TreeMapperRootNode extends Node
             ->withArguments(
                 Node::variable('exceptionFilter'),
                 Node::variable('constructorCallbacks'),
+                Node::variable('converters'),
+                Node::variable('keyConverters'),
+                Node::variable('inferredMapping'),
             )
             ->withProperties(
-                Node::propertyDeclaration('constructorCallbacks', 'array'),
                 Node::propertyDeclaration('exceptionFilter', '\\Closure'),
+                Node::propertyDeclaration('constructorCallbacks', 'array'),
+                Node::propertyDeclaration('converters', 'array'),
+                Node::propertyDeclaration('keyConverters', 'array'),
+                Node::propertyDeclaration('inferredMapping', 'array'),
             )
             ->withMethods(
                 MethodNode::constructor()
@@ -50,10 +56,16 @@ final class TreeMapperRootNode extends Node
                     ->witParameters(
                         Node::parameterDeclaration('exceptionFilter', 'callable'),
                         Node::parameterDeclaration('constructorCallbacks', 'array'),
+                        Node::parameterDeclaration('converters', 'array'),
+                        Node::parameterDeclaration('keyConverters', 'array'),
+                        Node::parameterDeclaration('inferredMapping', 'array'),
                     )
                     ->withBody(
-                        Node::property('constructorCallbacks')->assign(Node::variable('constructorCallbacks'))->asExpression(),
                         Node::property('exceptionFilter')->assign(Node::variable('exceptionFilter'))->asExpression(),
+                        Node::property('constructorCallbacks')->assign(Node::variable('constructorCallbacks'))->asExpression(),
+                        Node::property('converters')->assign(Node::variable('converters'))->asExpression(),
+                        Node::property('keyConverters')->assign(Node::variable('keyConverters'))->asExpression(),
+                        Node::property('inferredMapping')->assign(Node::variable('inferredMapping'))->asExpression(),
                     ),
                 Node::method('map')
                     ->withVisibility('public')

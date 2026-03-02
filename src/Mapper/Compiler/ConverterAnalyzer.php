@@ -41,13 +41,12 @@ final class ConverterAnalyzer
 
     /**
      * Analyze global converters against a target type and return those whose return
-     * type matches. For each matching converter, the callback is registered as
-     * a constructor callback and the first parameter type (with generics
-     * resolved) is returned for runtime type checking.
+     * type matches. Returns converter indices for direct access via `$this->converters[$index]`
+     * in the compiled class.
      *
-     * @return array<int, array{key: string, paramType: Type, paramCount: int}>
+     * @return array<int, array{converterIndex: int, paramType: Type, paramCount: int}>
      */
-    public function matchingConvertersFor(Type $type, ConstructorCallbackRegistry $registry): array
+    public function matchingConvertersFor(Type $type): array
     {
         $analyzedConverters = $this->getAnalyzedConverters();
         $matching = [];
@@ -74,11 +73,8 @@ final class ConverterAnalyzer
                 continue;
             }
 
-            $callbackKey = 'converter_' . $index;
-            $registry->register($callbackKey, $entry['callable']);
-
             $matching[] = [
-                'key' => $callbackKey,
+                'converterIndex' => $index,
                 'paramType' => $firstParameterType,
                 'paramCount' => $resolved->parameters->count(),
             ];
@@ -91,9 +87,9 @@ final class ConverterAnalyzer
      * Discover converter attributes from an Attributes collection and return
      * matching converter info for the given target type.
      *
-     * @return array<int, array{key: string, paramType: Type, paramCount: int}>
+     * @return array<int, array{callbackKey: string, paramType: Type, paramCount: int}>
      */
-    public function attributeConvertersFor(Attributes $attributes, Type $targetType, ConstructorCallbackRegistry $registry): array
+    public function attributeConvertersFor(Attributes $attributes, Type $targetType, \Closure $register): array
     {
         if ($attributes->count() === 0 || $this->functionDefinitionRepository === null) {
             return [];
@@ -125,10 +121,10 @@ final class ConverterAnalyzer
             }
 
             $callbackKey = self::attributeConverterKey($attrDef);
-            $registry->register($callbackKey, $callable);
+            $register($callbackKey, $callable);
 
             $matching[] = [
-                'key' => $callbackKey,
+                'callbackKey' => $callbackKey,
                 'paramType' => $firstParameterType,
                 'paramCount' => $resolved->parameters->count(),
             ];
@@ -145,17 +141,6 @@ final class ConverterAnalyzer
         $parts = implode('|', array_map('strval', $attrDef->reflectionParts));
 
         return 'attr_conv_' . hash('crc32', $attrDef->class->name . '|' . $parts . '|' . $attrDef->attributeIndex);
-    }
-
-    /**
-     * Register all global converter callables as constructor callbacks.
-     * Called during reset to ensure converters are available for cached mappers.
-     */
-    public function registerConverterCallbacks(ConstructorCallbackRegistry $registry): void
-    {
-        foreach ($this->converters as $index => $converter) {
-            $registry->register('converter_' . $index, $converter);
-        }
     }
 
     /**

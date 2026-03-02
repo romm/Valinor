@@ -39,27 +39,27 @@ final class CacheTreeMapper implements TreeMapper
             throw new InvalidMappingTypeSignature($signature, $exception);
         }
 
-        // Always collect constructor callbacks for this type.
+        // Collect FunctionObjectBuilder callbacks for this type.
         // This is needed both for fresh compilation and cache hits,
         // because callbacks (closures) cannot be serialized into the cache.
-        $registry = $this->typeMapperFactory->callbackRegistry();
-        $registry->reset();
-
-        // Register converter and key converter callbacks
-        $this->typeMapperFactory->converterAnalyzer()->registerConverterCallbacks($registry);
-        foreach ($this->typeMapperFactory->keyConverterHandler()->keyConverterKeys($registry) as $_) {
-            // Keys are already registered by keyConverterKeys()
-        }
+        $this->typeMapperFactory->resetCallbacks();
 
         try {
-            $this->cacheCallbackCollector->collectCallbacksForType($type, $registry);
+            $this->cacheCallbackCollector->collectCallbacksForType($type, $this->typeMapperFactory->registerCallback(...));
         } catch (MappingLogicalException $exception) {
             throw new TypeErrorDuringMapping($type, $exception);
         }
 
-        $callbacks = $registry->all();
+        $callbacks = $this->typeMapperFactory->constructorCallbacks();
 
-        $mapper = $this->cache->get($key, $this->settings->exceptionFilter, $callbacks);
+        $mapper = $this->cache->get(
+            $key,
+            $this->settings->exceptionFilter,
+            $callbacks,
+            $this->settings->convertersSortedByPriority(),
+            $this->settings->keyConverters,
+            $this->settings->inferredMapping,
+        );
 
         if ($mapper) {
             return $mapper->map($signature, $source);
@@ -76,8 +76,15 @@ final class CacheTreeMapper implements TreeMapper
         $this->cache->set($key, $cacheEntry);
 
         // Re-collect callbacks (compilation may have registered additional ones)
-        $callbacks = $registry->all();
-        $mapper = $this->cache->get($key, $this->settings->exceptionFilter, $callbacks);
+        $callbacks = $this->typeMapperFactory->constructorCallbacks();
+        $mapper = $this->cache->get(
+            $key,
+            $this->settings->exceptionFilter,
+            $callbacks,
+            $this->settings->convertersSortedByPriority(),
+            $this->settings->keyConverters,
+            $this->settings->inferredMapping,
+        );
 
         return $mapper->map($signature, $source);
     }
@@ -90,6 +97,9 @@ final class CacheTreeMapper implements TreeMapper
             ->witParameters(
                 Node::parameterDeclaration('exceptionFilter', 'callable'),
                 Node::parameterDeclaration('constructorCallbacks', 'array'),
+                Node::parameterDeclaration('converters', 'array'),
+                Node::parameterDeclaration('keyConverters', 'array'),
+                Node::parameterDeclaration('inferredMapping', 'array'),
             );
 
         return (new Compiler())->compile($node)->code();

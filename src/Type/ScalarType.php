@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Type;
 
+use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Mapper\Tree\Message\ErrorMessage;
 
 /** @internal */
 interface ScalarType extends Type
 {
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode;
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode;
     /**
      * Should return true if the value can be casted to this type.
      *

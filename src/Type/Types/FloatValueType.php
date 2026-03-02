@@ -60,6 +60,17 @@ final class FloatValueType implements FloatType, FixedType
             ->build();
     }
 
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    {
+        return Node::functionCall('is_numeric', [$node])
+            ->and($node->castTo($this)->equals(Node::value($this->value)));
+    }
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode
+    {
+        return $node->castTo($this);
+    }
+
     public function value(): float
     {
         return $this->value;

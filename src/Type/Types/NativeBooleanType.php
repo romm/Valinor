@@ -75,6 +75,26 @@ final class NativeBooleanType implements BooleanType
             ->build();
     }
 
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    {
+        return Node::functionCall('is_bool', [$node])
+            ->or($node->equals(Node::value('1')))
+            ->or($node->equals(Node::value('0')))
+            ->or($node->equals(Node::value(1)))
+            ->or($node->equals(Node::value(0)))
+            ->or($node->equals(Node::value('true')))
+            ->or($node->equals(Node::value('false')));
+    }
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode
+    {
+        return Node::ternary(
+            $node->equals(Node::value('false')),
+            Node::value(false),
+            $node->castTo($this),
+        )->wrap();
+    }
+
     public function nativeType(): NativeBooleanType
     {
         return $this;

@@ -35,15 +35,15 @@ final class KeyConverterNodes
         TypeMapperFactory $factory,
         bool $wrapInArrayCheck = false,
     ): array {
-        $keyConverterKeys = $factory->keyConverterKeys();
+        $keyConverterIndices = $factory->keyConverterIndices();
 
         // Build converter chain: apply each converter to the key
         $keyVarNode = Node::variable('ck');
         $converterNodes = [];
 
-        foreach ($keyConverterKeys as $kcKey) {
+        foreach ($keyConverterIndices as $kcIndex) {
             $converterNodes[] = $keyVarNode->assign(
-                Node::this()->access('constructorCallbacks')->key(Node::value($kcKey))->call([$keyVarNode]),
+                Node::this()->access('keyConverters')->key(Node::value($kcIndex))->call([$keyVarNode]),
             )->asExpression();
         }
 

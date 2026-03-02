@@ -179,6 +179,51 @@ final class ArrayKeyType implements ScalarType, CompositeType, DumpableType
             ->build();
     }
 
+    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    {
+        $conditions = [];
+
+        foreach ($this->types as $type) {
+            if ($type instanceof ScalarType) {
+                $conditions[] = $type->compiledCanCast($node);
+            }
+        }
+
+        if (count($conditions) === 1) {
+            return $conditions[0];
+        }
+
+        return Node::logicalOr(...$conditions);
+    }
+
+    public function compiledCast(ComplianceNode $node): ComplianceNode
+    {
+        $scalarTypes = [];
+
+        foreach ($this->types as $type) {
+            if ($type instanceof ScalarType) {
+                $scalarTypes[] = $type;
+            }
+        }
+
+        if (count($scalarTypes) === 1) {
+            return $scalarTypes[0]->compiledCast($node);
+        }
+
+        // Chain ternaries: try each type in order
+        $result = $scalarTypes[count($scalarTypes) - 1]->compiledCast($node);
+
+        for ($i = count($scalarTypes) - 2; $i >= 0; $i--) {
+            $result = Node::ternary(
+                $scalarTypes[$i]->compiledCanCast($node),
+                $scalarTypes[$i]->compiledCast($node),
+                $result,
+            )->wrap();
+        }
+
+        return $result;
+    }
+
     public function traverse(): array
     {
         return $this->types;

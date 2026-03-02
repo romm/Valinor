@@ -23,7 +23,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
 {
     use TypeMapperMethodName;
     /**
-     * @param array<int, array{key: string, paramType: Type, paramCount: int}> $matchingConverters
+     * @param array<int, array{converterIndex?: int, callbackKey?: string, paramType: Type, paramCount: int}> $matchingConverters
      */
     public function __construct(
         private Type $targetType,
@@ -103,15 +103,12 @@ final class ConverterTypeMapperWrapper implements TypeMapper
      * Single-param converters are terminal: they directly return the result
      * after post-validation against the target type.
      *
-     * @param array{key: string, paramType: Type, paramCount: int} $converterInfo
+     * @param array{converterIndex?: int, callbackKey?: string, paramType: Type, paramCount: int} $converterInfo
      */
     private function compileSingleParamConverter(array $converterInfo, Node $condition): Node
     {
-        $callbackKey = $converterInfo['key'];
-
         // Single-param converter: terminal, returns result directly
-        $converterCall = Node::this()->access('constructorCallbacks')
-            ->key(Node::value($callbackKey))
+        $converterCall = $this->converterAccessNode($converterInfo)
             ->call([Node::variable('source')]);
 
         $tryBody = [
@@ -148,7 +145,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
      * optionally transform the value before passing it to the next converter
      * or the delegate mapper.
      *
-     * @param array{key: string, paramType: Type, paramCount: int} $converterInfo
+     * @param array{converterIndex?: int, callbackKey?: string, paramType: Type, paramCount: int} $converterInfo
      */
     private function compileTwoParamConverter(
         array $converterInfo,
@@ -156,8 +153,6 @@ final class ConverterTypeMapperWrapper implements TypeMapper
         string $methodName,
         int $index,
     ): Node {
-        $callbackKey = $converterInfo['key'];
-
         // Two-param converter: chain with $next closure
         $nextClosure = Node::closure(
             Node::variable('newValue')->assign(
@@ -176,8 +171,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
             ),
         )->uses('source', 'context');
 
-        $converterCall = Node::this()->access('constructorCallbacks')
-            ->key(Node::value($callbackKey))
+        $converterCall = $this->converterAccessNode($converterInfo)
             ->call([
                 Node::variable('source'),
                 $nextClosure,
@@ -241,17 +235,37 @@ final class ConverterTypeMapperWrapper implements TypeMapper
     }
 
     /**
+     * Get the compiled node for accessing a converter callable.
+     * Global converters use `$this->converters[$index]`, attribute converters
+     * use `$this->constructorCallbacks[$key]`.
+     *
+     * @param array{converterIndex?: int, callbackKey?: string} $converterInfo
+     */
+    private function converterAccessNode(array $converterInfo): ComplianceNode
+    {
+        if (isset($converterInfo['converterIndex'])) {
+            return Node::this()->access('converters')->key(Node::value($converterInfo['converterIndex']));
+        }
+
+        return Node::this()->access('constructorCallbacks')->key(Node::value($converterInfo['callbackKey']));
+    }
+
+    /**
      * @return non-empty-string
      */
     private function methodName(): string
     {
-        // Include converter keys in hash so methods with different converter
+        // Include converter identifiers in hash so methods with different converter
         // sets (e.g. attribute converters on different properties of the same
         // type) get distinct method names.
         $hashInput = $this->targetType->toString();
 
         foreach ($this->matchingConverters as $conv) {
-            $hashInput .= '|' . $conv['key'];
+            if (isset($conv['converterIndex'])) {
+                $hashInput .= '|g' . $conv['converterIndex'];
+            } else {
+                $hashInput .= '|a' . $conv['callbackKey'];
+            }
         }
 
         return self::buildMethodName('convert_and_map', $this->targetType->toString(), $hashInput);

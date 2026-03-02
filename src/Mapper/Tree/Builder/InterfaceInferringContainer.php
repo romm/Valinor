@@ -19,6 +19,7 @@ use CuyZ\Valinor\Type\Types\InterfaceType;
 use CuyZ\Valinor\Type\Types\UnionType;
 use Exception;
 
+use function array_keys;
 use function assert;
 use function count;
 use function is_string;
@@ -69,7 +70,7 @@ final class InterfaceInferringContainer
         $implementations = $this->classImplementationsFor($name);
 
         return $implementations[$class]
-            ?? throw new ObjectImplementationNotRegistered($class, $name, $implementations);
+            ?? throw new ObjectImplementationNotRegistered($class, $name, array_keys($implementations));
     }
 
     /**

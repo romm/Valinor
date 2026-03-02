@@ -15,13 +15,10 @@ use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Object\Arguments;
 use CuyZ\Valinor\Mapper\Tree\Exception\ObjectImplementationNotRegistered;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceMustBeIterable;
-use CuyZ\Valinor\Type\ClassType;
 use CuyZ\Valinor\Type\ObjectType;
 use CuyZ\Valinor\Utility\ValueDumper;
 
 use function array_keys;
-use function implode;
-
 use function count;
 
 /** @internal */
@@ -60,13 +57,6 @@ final class InterfaceTypeMapper implements TypeMapper
         // Register placeholder to prevent infinite recursion
         $class = $class->withMethods(Node::method($methodName));
 
-        // Register the infer callback
-        $callbackKey = self::inferCallbackKey($this->type->className());
-        $typeMapperFactory->callbackRegistry()->register(
-            $callbackKey,
-            $typeMapperFactory->inferCallbackFor($this->type->className()),
-        );
-
         $nodes = [];
 
         // Pre-compile all implementation mappers without registered converters
@@ -80,7 +70,8 @@ final class InterfaceTypeMapper implements TypeMapper
 
         // Compile infer argument mapping and invocation
         $argCount = count($this->inferArguments);
-        $this->compileInferArgMapping($argCount, $callbackKey, $class, $settings, $typeMapperFactory, $nodes);
+        $className = $this->type->className();
+        $this->compileInferArgMapping($argCount, $className, $class, $settings, $typeMapperFactory, $nodes);
 
         // Allow infer function argument names as superfluous keys in implementation mapping
         if ($argCount > 0) {
@@ -102,17 +93,14 @@ final class InterfaceTypeMapper implements TypeMapper
                 ),
             );
         }
-        // Default case: throw ObjectImplementationNotRegistered with the registered implementations
-        $implsKey = self::implementationsKey($this->type->className());
-        $typeMapperFactory->callbackRegistry()->register($implsKey, $this->implementations);
-
+        // Default case: throw ObjectImplementationNotRegistered with the implementation list
         $matchNode = $matchNode->withDefaultCase(
             Node::throw(
                 Node::newClass(
                     ObjectImplementationNotRegistered::class,
                     Node::variable('className'),
                     Node::value($this->type->className()),
-                    Node::this()->access('constructorCallbacks')->key(Node::value($implsKey)),
+                    Node::value(array_keys($this->implementations)),
                 ),
             ),
         );
@@ -132,21 +120,24 @@ final class InterfaceTypeMapper implements TypeMapper
 
     /**
      * Compile infer argument mapping and invocation for 0, 1, or multi-arg cases.
+     * @param class-string $interfaceClassName
      * @param non-empty-list<Node> $nodes Reference to nodes array to append to
      */
     private function compileInferArgMapping(
         int $argCount,
-        string $callbackKey,
+        string $interfaceClassName,
         AnonymousClassNode &$class,
         Settings $settings,
         TypeMapperFactory $typeMapperFactory,
         array &$nodes,
     ): void {
+        $inferCallNode = Node::this()->access('inferredMapping')->key(Node::value($interfaceClassName));
+
         if ($argCount === 0) {
             // No arguments: call infer function directly with no args
             $nodes[] = Node::try(
                 Node::variable('className')->assign(
-                    Node::this()->access('constructorCallbacks')->key(Node::value($callbackKey))->call(),
+                    $inferCallNode->call(),
                 )->asExpression(),
             )->catches(
                 \Exception::class,
@@ -220,10 +211,9 @@ final class InterfaceTypeMapper implements TypeMapper
             );
 
             // Call the infer function with the single mapped argument
-            $callNode = Node::this()->access('constructorCallbacks')->key(Node::value($callbackKey));
             $nodes[] = Node::try(
                 Node::variable('className')->assign(
-                    $callNode->call([Node::variable('inferArg')]),
+                    $inferCallNode->call([Node::variable('inferArg')]),
                 )->asExpression(),
             )->catches(
                 \Exception::class,
@@ -305,8 +295,6 @@ final class InterfaceTypeMapper implements TypeMapper
             );
 
             // Call the infer function with mapped arguments
-            $callNode = Node::this()->access('constructorCallbacks')->key(Node::value($callbackKey));
-
             $callArgs = [];
             foreach ($this->inferArguments as $arg) {
                 $callArgs[] = Node::variable('inferArg_' . $arg->name());
@@ -314,7 +302,7 @@ final class InterfaceTypeMapper implements TypeMapper
 
             $nodes[] = Node::try(
                 Node::variable('className')->assign(
-                    $callNode->call($callArgs),
+                    $inferCallNode->call($callArgs),
                 )->asExpression(),
             )->catches(
                 \Exception::class,
@@ -326,24 +314,6 @@ final class InterfaceTypeMapper implements TypeMapper
                 Node::return(Node::value(null)),
             );
         }
-    }
-
-    /**
-     * @param class-string $interfaceName
-     * @return non-empty-string
-     */
-    public static function inferCallbackKey(string $interfaceName): string
-    {
-        return 'infer_' . hash('crc32', $interfaceName);
-    }
-
-    /**
-     * @param class-string $interfaceName
-     * @return non-empty-string
-     */
-    public static function implementationsKey(string $interfaceName): string
-    {
-        return 'impls_' . hash('crc32', $interfaceName);
     }
 
     /**
