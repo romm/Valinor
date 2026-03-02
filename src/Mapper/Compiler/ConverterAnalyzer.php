@@ -18,10 +18,6 @@ use CuyZ\Valinor\Type\Types\CallableType;
 use CuyZ\Valinor\Type\Types\Generics;
 use CuyZ\Valinor\Type\Types\UnresolvableType;
 
-use function array_map;
-use function hash;
-use function implode;
-use function strval;
 
 /**
  * Analyzes and matches converters (both global and attribute-based) against target types.
@@ -87,9 +83,9 @@ final class ConverterAnalyzer
      * Discover converter attributes from an Attributes collection and return
      * matching converter info for the given target type.
      *
-     * @return array<int, array{callbackKey: string, paramType: Type, paramCount: int}>
+     * @return array<int, array{attrDef: AttributeDefinition, paramType: Type, paramCount: int}>
      */
-    public function attributeConvertersFor(Attributes $attributes, Type $targetType, \Closure $register): array
+    public function attributeConvertersFor(Attributes $attributes, Type $targetType): array
     {
         if ($attributes->count() === 0 || $this->functionDefinitionRepository === null) {
             return [];
@@ -120,27 +116,14 @@ final class ConverterAnalyzer
                 continue;
             }
 
-            $callbackKey = self::attributeConverterKey($attrDef);
-            $register($callbackKey, $callable);
-
             $matching[] = [
-                'callbackKey' => $callbackKey,
+                'attrDef' => $attrDef,
                 'paramType' => $firstParameterType,
                 'paramCount' => $resolved->parameters->count(),
             ];
         }
 
         return $matching;
-    }
-
-    /**
-     * Generate a deterministic callback key for an attribute converter.
-     */
-    public static function attributeConverterKey(AttributeDefinition $attrDef): string
-    {
-        $parts = implode('|', array_map('strval', $attrDef->reflectionParts));
-
-        return 'attr_conv_' . hash('crc32', $attrDef->class->name . '|' . $parts . '|' . $attrDef->attributeIndex);
     }
 
     /**

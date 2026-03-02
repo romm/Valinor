@@ -82,7 +82,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
             $subMapper = $typeMapperFactory->for($element->type());
 
             // Wrap with attribute converters if the element has any
-            $attrConverters = $typeMapperFactory->converterAnalyzer()->attributeConvertersFor($element->attributes(), $element->type(), $typeMapperFactory->registerCallback(...));
+            $attrConverters = $typeMapperFactory->converterAnalyzer()->attributeConvertersFor($element->attributes(), $element->type());
 
             if ($attrConverters !== []) {
                 $subMapper = new ConverterTypeMapperWrapper($element->type(), $subMapper, $attrConverters);

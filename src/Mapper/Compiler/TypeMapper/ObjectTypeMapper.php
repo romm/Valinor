@@ -31,9 +31,6 @@ use function array_filter;
 
 use function array_merge;
 use function count;
-use function hash;
-use function preg_replace;
-use function strtolower;
 
 final class ObjectTypeMapper implements TypeMapper
 {
@@ -93,8 +90,10 @@ final class ObjectTypeMapper implements TypeMapper
         $hasMultipleBuilders = count($this->builders) > 1;
 
         foreach ($this->builders as $builder) {
-            // Register FunctionObjectBuilder callbacks for runtime injection
-            if ($builder instanceof FunctionObjectBuilder) {
+            // Register callbacks for factory-created FunctionObjectBuilders
+            // (e.g. DateTime/DateTimeZone). Settings-based constructors use
+            // direct index access and don't need callback registration.
+            if ($builder instanceof FunctionObjectBuilder && $builder->constructorIndex() === null) {
                 $typeMapperFactory->registerCallback(
                     $builder->callbackKey(),
                     $builder->callback(),
@@ -471,7 +470,7 @@ final class ObjectTypeMapper implements TypeMapper
         $flatMapper = $typeMapperFactory->for($flattenedType);
 
         // Wrap flat mapper with attribute converters from the argument
-        $argAttrConverters = $typeMapperFactory->converterAnalyzer()->attributeConvertersFor($argument->attributes(), $flattenedType, $typeMapperFactory->registerCallback(...));
+        $argAttrConverters = $typeMapperFactory->converterAnalyzer()->attributeConvertersFor($argument->attributes(), $flattenedType);
         if ($argAttrConverters !== []) {
             $flatMapper = new ConverterTypeMapperWrapper($flattenedType, $flatMapper, $argAttrConverters);
         }

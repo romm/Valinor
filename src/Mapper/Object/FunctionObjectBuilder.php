@@ -27,7 +27,7 @@ final class FunctionObjectBuilder implements ObjectBuilder
 
     private bool $isDynamicConstructor;
 
-    public function __construct(FunctionObject $function, ObjectType $type)
+    public function __construct(FunctionObject $function, ObjectType $type, private ?int $constructorIndex = null)
     {
         $definition = $function->definition;
 
@@ -75,8 +75,11 @@ final class FunctionObjectBuilder implements ObjectBuilder
      */
     public function compile(ComplianceNode $values): array
     {
-        $callbackKey = $this->callbackKey();
-        $callNode = Node::this()->access('constructorCallbacks')->key(Node::value($callbackKey));
+        if ($this->constructorIndex !== null) {
+            $callNode = Node::this()->access('customConstructors')->key(Node::value($this->constructorIndex));
+        } else {
+            $callNode = Node::this()->access('constructorCallbacks')->key(Node::value($this->callbackKey()));
+        }
 
         $arguments = [];
 
@@ -110,6 +113,11 @@ final class FunctionObjectBuilder implements ObjectBuilder
     public function callback(): mixed
     {
         return $this->function->callback;
+    }
+
+    public function constructorIndex(): ?int
+    {
+        return $this->constructorIndex;
     }
 
     public function isDynamic(): bool

@@ -36,7 +36,7 @@ use function is_a;
 /** @internal */
 final class ConstructorObjectBuilderFactory implements ObjectBuilderFactory
 {
-    /** @var list<FunctionObject> */
+    /** @var array<int, FunctionObject> */
     private array $filteredConstructors;
 
     public function __construct(
@@ -68,7 +68,7 @@ final class ConstructorObjectBuilderFactory implements ObjectBuilderFactory
     {
         $builders = [];
 
-        foreach ($this->filteredConstructors() as $constructor) {
+        foreach ($this->filteredConstructors() as $constructorIndex => $constructor) {
             if (! $this->constructorMatches($constructor, $class->type)) {
                 continue;
             }
@@ -78,7 +78,7 @@ final class ConstructorObjectBuilderFactory implements ObjectBuilderFactory
 
                 $builders[$constructor->definition->signature] = new MethodObjectBuilder($scopedClass, $constructor->definition->name, $constructor->definition->parameters);
             } else {
-                $builders[$constructor->definition->signature] = new FunctionObjectBuilder($constructor, $class->type);
+                $builders[$constructor->definition->signature] = new FunctionObjectBuilder($constructor, $class->type, $constructorIndex);
             }
         }
 
@@ -166,14 +166,14 @@ final class ConstructorObjectBuilderFactory implements ObjectBuilderFactory
     }
 
     /**
-     * @return list<FunctionObject>
+     * @return array<int, FunctionObject>
      */
     private function filteredConstructors(): array
     {
         if (! isset($this->filteredConstructors)) {
             $this->filteredConstructors = [];
 
-            foreach ($this->constructors as $constructor) {
+            foreach ($this->constructors as $key => $constructor) {
                 $function = $constructor->definition;
 
                 if ($function->class
@@ -187,7 +187,7 @@ final class ConstructorObjectBuilderFactory implements ObjectBuilderFactory
                     throw new InvalidConstructorReturnType($function);
                 }
 
-                $this->filteredConstructors[] = $constructor;
+                $this->filteredConstructors[$key] = $constructor;
             }
         }
 

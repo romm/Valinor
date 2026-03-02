@@ -9,7 +9,6 @@ use CuyZ\Valinor\Cache\CacheEntry;
 use CuyZ\Valinor\Compiler\Compiler;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
-use CuyZ\Valinor\Mapper\Compiler\CacheCallbackCollector;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Compiler\TreeMapperRootNode;
 use CuyZ\Valinor\Mapper\Exception\InvalidMappingTypeSignature;
@@ -25,7 +24,8 @@ final class CacheTreeMapper implements TreeMapper
         private TypeParser $typeParser,
         private Cache $cache,
         private TypeMapperFactory $typeMapperFactory,
-        private CacheCallbackCollector $cacheCallbackCollector,
+        /** @var array<string, mixed> */
+        private array $factoryCallbacks,
         private Settings $settings,
     ) {}
 
@@ -33,29 +33,11 @@ final class CacheTreeMapper implements TreeMapper
     {
         $key = "mapper-\0" . $signature;
 
-        try {
-            $type = $this->typeParser->parse($signature);
-        } catch (InvalidType $exception) {
-            throw new InvalidMappingTypeSignature($signature, $exception);
-        }
-
-        // Collect FunctionObjectBuilder callbacks for this type.
-        // This is needed both for fresh compilation and cache hits,
-        // because callbacks (closures) cannot be serialized into the cache.
-        $this->typeMapperFactory->resetCallbacks();
-
-        try {
-            $this->cacheCallbackCollector->collectCallbacksForType($type, $this->typeMapperFactory->registerCallback(...));
-        } catch (MappingLogicalException $exception) {
-            throw new TypeErrorDuringMapping($type, $exception);
-        }
-
-        $callbacks = $this->typeMapperFactory->constructorCallbacks();
-
         $mapper = $this->cache->get(
             $key,
             $this->settings->exceptionFilter,
-            $callbacks,
+            $this->settings->customConstructors,
+            $this->factoryCallbacks,
             $this->settings->convertersSortedByPriority(),
             $this->settings->keyConverters,
             $this->settings->inferredMapping,
@@ -66,7 +48,12 @@ final class CacheTreeMapper implements TreeMapper
         }
 
         try {
-            // Compilation also registers callbacks via TypeMapperFactory
+            $type = $this->typeParser->parse($signature);
+        } catch (InvalidType $exception) {
+            throw new InvalidMappingTypeSignature($signature, $exception);
+        }
+
+        try {
             $cacheEntry = new CacheEntry($this->compileFor($type)); // @todo files to watch
         } catch (MappingLogicalException $exception) {
             throw new TypeErrorDuringMapping($type, $exception);
@@ -75,12 +62,14 @@ final class CacheTreeMapper implements TreeMapper
         // @phpstan-ignore argument.type (this is a temporary workaround, while waiting for the cache API to be refined)
         $this->cache->set($key, $cacheEntry);
 
-        // Re-collect callbacks (compilation may have registered additional ones)
-        $callbacks = $this->typeMapperFactory->constructorCallbacks();
+        // After compilation, merge factory callbacks with any compilation-registered callbacks
+        $allCallbacks = $this->factoryCallbacks + $this->typeMapperFactory->constructorCallbacks();
+
         $mapper = $this->cache->get(
             $key,
             $this->settings->exceptionFilter,
-            $callbacks,
+            $this->settings->customConstructors,
+            $allCallbacks,
             $this->settings->convertersSortedByPriority(),
             $this->settings->keyConverters,
             $this->settings->inferredMapping,
@@ -96,6 +85,7 @@ final class CacheTreeMapper implements TreeMapper
         $node = Node::shortClosure($rootNode)
             ->witParameters(
                 Node::parameterDeclaration('exceptionFilter', 'callable'),
+                Node::parameterDeclaration('customConstructors', 'array'),
                 Node::parameterDeclaration('constructorCallbacks', 'array'),
                 Node::parameterDeclaration('converters', 'array'),
                 Node::parameterDeclaration('keyConverters', 'array'),

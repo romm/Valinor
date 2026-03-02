@@ -38,6 +38,7 @@ final class TreeMapperRootNode extends Node
             ->implements(TreeMapper::class)
             ->withArguments(
                 Node::variable('exceptionFilter'),
+                Node::variable('customConstructors'),
                 Node::variable('constructorCallbacks'),
                 Node::variable('converters'),
                 Node::variable('keyConverters'),
@@ -45,6 +46,7 @@ final class TreeMapperRootNode extends Node
             )
             ->withProperties(
                 Node::propertyDeclaration('exceptionFilter', '\\Closure'),
+                Node::propertyDeclaration('customConstructors', 'array'),
                 Node::propertyDeclaration('constructorCallbacks', 'array'),
                 Node::propertyDeclaration('converters', 'array'),
                 Node::propertyDeclaration('keyConverters', 'array'),
@@ -55,6 +57,7 @@ final class TreeMapperRootNode extends Node
                     ->withVisibility('public')
                     ->witParameters(
                         Node::parameterDeclaration('exceptionFilter', 'callable'),
+                        Node::parameterDeclaration('customConstructors', 'array'),
                         Node::parameterDeclaration('constructorCallbacks', 'array'),
                         Node::parameterDeclaration('converters', 'array'),
                         Node::parameterDeclaration('keyConverters', 'array'),
@@ -62,6 +65,7 @@ final class TreeMapperRootNode extends Node
                     )
                     ->withBody(
                         Node::property('exceptionFilter')->assign(Node::variable('exceptionFilter'))->asExpression(),
+                        Node::property('customConstructors')->assign(Node::variable('customConstructors'))->asExpression(),
                         Node::property('constructorCallbacks')->assign(Node::variable('constructorCallbacks'))->asExpression(),
                         Node::property('converters')->assign(Node::variable('converters'))->asExpression(),
                         Node::property('keyConverters')->assign(Node::variable('keyConverters'))->asExpression(),

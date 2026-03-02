@@ -8,9 +8,11 @@ use CuyZ\Valinor\Compiler\Compiler;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\AttributeDefinition;
 use ReflectionClass;
+use ReflectionMethod;
 use ReflectionProperty;
 
 use function array_map;
+use function str_contains;
 
 /** @internal */
 final class NewAttributeNode extends Node
@@ -28,17 +30,36 @@ final class NewAttributeNode extends Node
             );
         }
 
-        // @phpstan-ignore match.unhandled (for now only those two cases can be handled here anyway)
-        $node = match ($this->attribute->reflectionParts[0]) {
-            'class' => Node::newClass(ReflectionClass::class, Node::className($this->attribute->reflectionParts[1])),
-            'property' => Node::newClass(ReflectionProperty::class, Node::className($this->attribute->reflectionParts[1]), Node::value($this->attribute->reflectionParts[2])),
+        $classNameNode = $this->classNameNode($this->attribute->reflectionParts[1]);
+
+        // @phpstan-ignore match.unhandled (closure/closureParameter cannot be compiled statically)
+        $reflectorNode = match ($this->attribute->reflectionParts[0]) {
+            'class' => Node::newClass(ReflectionClass::class, $classNameNode)->wrap(),
+            'property' => Node::newClass(ReflectionProperty::class, $classNameNode, Node::value($this->attribute->reflectionParts[2]))->wrap(),
+            'method' => Node::newClass(ReflectionMethod::class, $classNameNode, Node::value($this->attribute->reflectionParts[2]))->wrap(),
+            'methodParameter' => Node::newClass(ReflectionMethod::class, $classNameNode, Node::value($this->attribute->reflectionParts[2]))
+                ->wrap()->callMethod('getParameters')->key(Node::value($this->attribute->reflectionParts[3])),
         };
 
         return $compiler->compile(
-            $node->wrap()
+            $reflectorNode
                 ->callMethod('getAttributes')
                 ->key(Node::value($this->attribute->attributeIndex))
                 ->callMethod('newInstance'),
         );
+    }
+
+    /**
+     * For named classes, use Node::className() which generates \ClassName::class.
+     * For anonymous classes (containing '@'), use Node::value() which generates
+     * a string literal that ReflectionClass/ReflectionProperty/etc. accept.
+     */
+    private function classNameNode(string $className): Node
+    {
+        if (str_contains($className, '@')) {
+            return Node::value($className);
+        }
+
+        return Node::className($className);
     }
 }

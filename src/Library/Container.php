@@ -23,7 +23,6 @@ use CuyZ\Valinor\Definition\Repository\Reflection\ReflectionClassDefinitionRepos
 use CuyZ\Valinor\Definition\Repository\Reflection\ReflectionFunctionDefinitionRepository;
 use CuyZ\Valinor\Mapper\ArgumentsMapper;
 use CuyZ\Valinor\Mapper\CacheTreeMapper;
-use CuyZ\Valinor\Mapper\Compiler\CacheCallbackCollector;
 use CuyZ\Valinor\Mapper\Compiler\ConverterAnalyzer;
 use CuyZ\Valinor\Mapper\Compiler\KeyConverterHandler;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
@@ -34,6 +33,7 @@ use CuyZ\Valinor\Mapper\Object\Factory\DateTimeZoneObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\InMemoryObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\ObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\ReflectionObjectBuilderFactory;
+use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;
 use CuyZ\Valinor\Mapper\Object\Factory\SortingObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\StrictTypesObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Tree\Builder\ArrayNodeBuilder;
@@ -69,6 +69,10 @@ use CuyZ\Valinor\Normalizer\Transformer\TransformerContainer;
 use CuyZ\Valinor\Type\Dumper\TypeDumper;
 use CuyZ\Valinor\Type\Parser\Factory\TypeParserFactory;
 use CuyZ\Valinor\Type\Parser\TypeParser;
+use CuyZ\Valinor\Type\Types\NativeClassType;
+use DateTime;
+use DateTimeImmutable;
+use DateTimeZone;
 
 use function call_user_func;
 
@@ -90,7 +94,7 @@ final class Container
                         $this->get(TypeParser::class),
                         new RuntimeCache($this->get(Cache::class)), // @phpstan-ignore argument.type
                         $this->get(TypeMapperFactory::class),
-                        $this->get(CacheCallbackCollector::class),
+                        $this->computeFactoryCallbacks($settings),
                         $settings,
                     );
                 }
@@ -123,12 +127,6 @@ final class Container
                     $settings->keyConverters,
                 );
             },
-
-            CacheCallbackCollector::class => fn () => new CacheCallbackCollector(
-                $this->get(ClassDefinitionRepository::class),
-                $this->get(ObjectBuilderFactory::class),
-                $this->get(InterfaceInferringContainer::class),
-            ),
 
             ArgumentsMapper::class => fn () => new TypeArgumentsMapper(
                 $this->get(FunctionDefinitionRepository::class),
@@ -362,6 +360,58 @@ final class Container
     public function cacheWarmupService(): RecursiveCacheWarmupService
     {
         return $this->get(RecursiveCacheWarmupService::class);
+    }
+
+    /**
+     * @todo this is shitty, we need to refactor this.
+     *
+     * Compute factory callbacks for types with internal (non-Settings)
+     * FunctionObjectBuilders (DateTime, DateTimeImmutable, DateTimeZone).
+     *
+     * Uses non-caching repositories to avoid creating extra disk cache entries.
+     *
+     * @return array<string, mixed>
+     */
+    private function computeFactoryCallbacks(Settings $settings): array
+    {
+        $classDefinitionRepository = new ReflectionClassDefinitionRepository(
+            $this->get(TypeParserFactory::class),
+            $settings->allowedAttributes(),
+        );
+
+        $functionDefinitionRepository = new ReflectionFunctionDefinitionRepository(
+            $this->get(TypeParserFactory::class),
+            new ReflectionAttributesRepository(
+                $classDefinitionRepository,
+                $settings->allowedAttributes(),
+            ),
+        );
+
+        $constructors = new FunctionsContainer(
+            $functionDefinitionRepository,
+            $settings->customConstructors,
+        );
+
+        $factory = new ReflectionObjectBuilderFactory();
+        $factory = new ConstructorObjectBuilderFactory($factory, $settings->nativeConstructors, $constructors);
+        $factory = new DateTimeZoneObjectBuilderFactory($factory, $functionDefinitionRepository);
+        $factory = new DateTimeObjectBuilderFactory($factory, $settings->supportedDateFormats, $functionDefinitionRepository);
+        $factory = new SortingObjectBuilderFactory($factory);
+
+        $callbacks = [];
+
+        foreach ([DateTime::class, DateTimeImmutable::class, DateTimeZone::class] as $className) {
+            $type = new NativeClassType($className);
+            $class = $classDefinitionRepository->for($type);
+
+            foreach ($factory->for($class) as $builder) {
+                if ($builder instanceof FunctionObjectBuilder && $builder->constructorIndex() === null) {
+                    $callbacks[$builder->callbackKey()] = $builder->callback();
+                }
+            }
+        }
+
+        return $callbacks;
     }
 
     /**

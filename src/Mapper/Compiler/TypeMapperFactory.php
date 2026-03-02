@@ -69,11 +69,6 @@ final class TypeMapperFactory
         return $this->constructorCallbacks;
     }
 
-    public function resetCallbacks(): void
-    {
-        $this->constructorCallbacks = [];
-    }
-
     public function dumpType(Type $type): string
     {
         return $this->typeDumper->dump($type);
@@ -120,7 +115,7 @@ final class TypeMapperFactory
             $class = $this->classDefinitionRepository->for($type);
 
             if (! $class->isAbstract && ! $this->interfaceInferringContainer->has($class->name)) {
-                $classAttrConverters = $this->converterAnalyzer->attributeConvertersFor($class->attributes, $type, $this->registerCallback(...));
+                $classAttrConverters = $this->converterAnalyzer->attributeConvertersFor($class->attributes, $type);
 
                 if ($classAttrConverters !== []) {
                     $typeMapper = new ConverterTypeMapperWrapper($type, $typeMapper, $classAttrConverters);

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
+use CuyZ\Valinor\Compiler\Library\NewAttributeNode;
 use CuyZ\Valinor\Compiler\Library\TypeAcceptNode;
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
+use CuyZ\Valinor\Definition\AttributeDefinition;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
@@ -18,12 +20,14 @@ use CuyZ\Valinor\Type\Type;
 use CuyZ\Valinor\Utility\ValueDumper;
 use Throwable;
 
+use function implode;
+
 /** @internal */
 final class ConverterTypeMapperWrapper implements TypeMapper
 {
     use TypeMapperMethodName;
     /**
-     * @param array<int, array{converterIndex?: int, callbackKey?: string, paramType: Type, paramCount: int}> $matchingConverters
+     * @param array<int, array{converterIndex?: int, attrDef?: AttributeDefinition, paramType: Type, paramCount: int}> $matchingConverters
      */
     public function __construct(
         private Type $targetType,
@@ -60,7 +64,6 @@ final class ConverterTypeMapperWrapper implements TypeMapper
         $nodes = [];
 
         foreach ($this->matchingConverters as $index => $converterInfo) {
-            $callbackKey = $converterInfo['key'];
             $paramType = $converterInfo['paramType'];
             $paramCount = $converterInfo['paramCount'];
 
@@ -103,13 +106,12 @@ final class ConverterTypeMapperWrapper implements TypeMapper
      * Single-param converters are terminal: they directly return the result
      * after post-validation against the target type.
      *
-     * @param array{converterIndex?: int, callbackKey?: string, paramType: Type, paramCount: int} $converterInfo
+     * @param array{converterIndex?: int, attrDef?: AttributeDefinition, paramType: Type, paramCount: int} $converterInfo
      */
     private function compileSingleParamConverter(array $converterInfo, Node $condition): Node
     {
         // Single-param converter: terminal, returns result directly
-        $converterCall = $this->converterAccessNode($converterInfo)
-            ->call([Node::variable('source')]);
+        $converterCall = $this->compileConverterCall($converterInfo, [Node::variable('source')]);
 
         $tryBody = [
             Node::variable('converterResult')->assign($converterCall)->asExpression(),
@@ -145,7 +147,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
      * optionally transform the value before passing it to the next converter
      * or the delegate mapper.
      *
-     * @param array{converterIndex?: int, callbackKey?: string, paramType: Type, paramCount: int} $converterInfo
+     * @param array{converterIndex?: int, attrDef?: AttributeDefinition, paramType: Type, paramCount: int} $converterInfo
      */
     private function compileTwoParamConverter(
         array $converterInfo,
@@ -171,11 +173,10 @@ final class ConverterTypeMapperWrapper implements TypeMapper
             ),
         )->uses('source', 'context');
 
-        $converterCall = $this->converterAccessNode($converterInfo)
-            ->call([
-                Node::variable('source'),
-                $nextClosure,
-            ]);
+        $converterCall = $this->compileConverterCall($converterInfo, [
+            Node::variable('source'),
+            $nextClosure,
+        ]);
 
         $tryBody = [
             Node::variable('converterResult')->assign($converterCall)->asExpression(),
@@ -235,19 +236,22 @@ final class ConverterTypeMapperWrapper implements TypeMapper
     }
 
     /**
-     * Get the compiled node for accessing a converter callable.
-     * Global converters use `$this->converters[$index]`, attribute converters
-     * use `$this->constructorCallbacks[$key]`.
+     * Compile the converter call node. Global converters use
+     * `$this->converters[$index]`, attribute converters instantiate
+     * the attribute inline and call `->map(...)`.
      *
-     * @param array{converterIndex?: int, callbackKey?: string} $converterInfo
+     * @param array{converterIndex?: int, attrDef?: AttributeDefinition} $converterInfo
+     * @param list<Node> $arguments
      */
-    private function converterAccessNode(array $converterInfo): ComplianceNode
+    private function compileConverterCall(array $converterInfo, array $arguments): Node
     {
         if (isset($converterInfo['converterIndex'])) {
-            return Node::this()->access('converters')->key(Node::value($converterInfo['converterIndex']));
+            return Node::this()->access('converters')->key(Node::value($converterInfo['converterIndex']))
+                ->call($arguments);
         }
 
-        return Node::this()->access('constructorCallbacks')->key(Node::value($converterInfo['callbackKey']));
+        return (new NewAttributeNode($converterInfo['attrDef']))->wrap()
+            ->callMethod('map', $arguments);
     }
 
     /**
@@ -263,8 +267,9 @@ final class ConverterTypeMapperWrapper implements TypeMapper
         foreach ($this->matchingConverters as $conv) {
             if (isset($conv['converterIndex'])) {
                 $hashInput .= '|g' . $conv['converterIndex'];
-            } else {
-                $hashInput .= '|a' . $conv['callbackKey'];
+            } elseif (isset($conv['attrDef'])) {
+                $attrDef = $conv['attrDef'];
+                $hashInput .= '|a' . $attrDef->class->name . '|' . implode('|', $attrDef->reflectionParts) . '|' . $attrDef->attributeIndex;
             }
         }
 
