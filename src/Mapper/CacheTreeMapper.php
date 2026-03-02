@@ -9,6 +9,7 @@ use CuyZ\Valinor\Cache\CacheEntry;
 use CuyZ\Valinor\Compiler\Compiler;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
+use CuyZ\Valinor\Mapper\Compiler\CacheCallbackCollector;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Compiler\TreeMapperRootNode;
 use CuyZ\Valinor\Mapper\Exception\InvalidMappingTypeSignature;
@@ -24,6 +25,7 @@ final class CacheTreeMapper implements TreeMapper
         private TypeParser $typeParser,
         private Cache $cache,
         private TypeMapperFactory $typeMapperFactory,
+        private CacheCallbackCollector $cacheCallbackCollector,
         private Settings $settings,
     ) {}
 
@@ -40,15 +42,22 @@ final class CacheTreeMapper implements TreeMapper
         // Always collect constructor callbacks for this type.
         // This is needed both for fresh compilation and cache hits,
         // because callbacks (closures) cannot be serialized into the cache.
-        $this->typeMapperFactory->resetConstructorCallbacks();
+        $registry = $this->typeMapperFactory->callbackRegistry();
+        $registry->reset();
+
+        // Register converter and key converter callbacks
+        $this->typeMapperFactory->converterAnalyzer()->registerConverterCallbacks($registry);
+        foreach ($this->typeMapperFactory->keyConverterHandler()->keyConverterKeys($registry) as $_) {
+            // Keys are already registered by keyConverterKeys()
+        }
 
         try {
-            $this->typeMapperFactory->collectCallbacksForType($type);
+            $this->cacheCallbackCollector->collectCallbacksForType($type, $registry);
         } catch (MappingLogicalException $exception) {
             throw new TypeErrorDuringMapping($type, $exception);
         }
 
-        $callbacks = $this->typeMapperFactory->constructorCallbacks();
+        $callbacks = $registry->all();
 
         $mapper = $this->cache->get($key, $this->settings->exceptionFilter, $callbacks);
 
@@ -67,7 +76,7 @@ final class CacheTreeMapper implements TreeMapper
         $this->cache->set($key, $cacheEntry);
 
         // Re-collect callbacks (compilation may have registered additional ones)
-        $callbacks = $this->typeMapperFactory->constructorCallbacks();
+        $callbacks = $registry->all();
         $mapper = $this->cache->get($key, $this->settings->exceptionFilter, $callbacks);
 
         return $mapper->map($signature, $source);

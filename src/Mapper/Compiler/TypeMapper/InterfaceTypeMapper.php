@@ -62,7 +62,7 @@ final class InterfaceTypeMapper implements TypeMapper
 
         // Register the infer callback
         $callbackKey = self::inferCallbackKey($this->type->className());
-        $typeMapperFactory->registerConstructorCallback(
+        $typeMapperFactory->callbackRegistry()->register(
             $callbackKey,
             $typeMapperFactory->inferCallbackFor($this->type->className()),
         );
@@ -104,7 +104,7 @@ final class InterfaceTypeMapper implements TypeMapper
         }
         // Default case: throw ObjectImplementationNotRegistered with the registered implementations
         $implsKey = self::implementationsKey($this->type->className());
-        $typeMapperFactory->registerConstructorCallback($implsKey, $this->implementations);
+        $typeMapperFactory->callbackRegistry()->register($implsKey, $this->implementations);
 
         $matchNode = $matchNode->withDefaultCase(
             Node::throw(

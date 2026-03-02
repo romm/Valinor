@@ -78,8 +78,8 @@ final class ScalarTypeMapper implements TypeMapper
             // Register canCast and cast callbacks for runtime use
             $canCastKey = 'canCast_' . hash('crc32', $this->type->toString());
             $castKey = 'cast_' . hash('crc32', $this->type->toString());
-            $typeMapperFactory->registerConstructorCallback($canCastKey, $this->type->canCast(...));
-            $typeMapperFactory->registerConstructorCallback($castKey, $this->type->cast(...));
+            $typeMapperFactory->callbackRegistry()->register($canCastKey, $this->type->canCast(...));
+            $typeMapperFactory->callbackRegistry()->register($castKey, $this->type->cast(...));
 
             $nodes = [
                 ...$nodes,

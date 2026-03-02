@@ -95,7 +95,7 @@ final class ObjectTypeMapper implements TypeMapper
         foreach ($this->builders as $builder) {
             // Register FunctionObjectBuilder callbacks for runtime injection
             if ($builder instanceof FunctionObjectBuilder) {
-                $typeMapperFactory->registerConstructorCallback(
+                $typeMapperFactory->callbackRegistry()->register(
                     $builder->callbackKey(),
                     $builder->callback(),
                 );
@@ -471,7 +471,7 @@ final class ObjectTypeMapper implements TypeMapper
         $flatMapper = $typeMapperFactory->for($flattenedType);
 
         // Wrap flat mapper with attribute converters from the argument
-        $argAttrConverters = $typeMapperFactory->attributeConvertersFor($argument->attributes(), $flattenedType);
+        $argAttrConverters = $typeMapperFactory->converterAnalyzer()->attributeConvertersFor($argument->attributes(), $flattenedType, $typeMapperFactory->callbackRegistry());
         if ($argAttrConverters !== []) {
             $flatMapper = new ConverterTypeMapperWrapper($flattenedType, $flatMapper, $argAttrConverters);
         }

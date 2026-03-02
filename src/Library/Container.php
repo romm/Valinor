@@ -23,6 +23,10 @@ use CuyZ\Valinor\Definition\Repository\Reflection\ReflectionClassDefinitionRepos
 use CuyZ\Valinor\Definition\Repository\Reflection\ReflectionFunctionDefinitionRepository;
 use CuyZ\Valinor\Mapper\ArgumentsMapper;
 use CuyZ\Valinor\Mapper\CacheTreeMapper;
+use CuyZ\Valinor\Mapper\Compiler\CacheCallbackCollector;
+use CuyZ\Valinor\Mapper\Compiler\ConstructorCallbackRegistry;
+use CuyZ\Valinor\Mapper\Compiler\ConverterAnalyzer;
+use CuyZ\Valinor\Mapper\Compiler\KeyConverterHandler;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\CircularDependencyDetectorObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\ConstructorObjectBuilderFactory;
@@ -86,15 +90,8 @@ final class Container
                     return new CacheTreeMapper(
                         $this->get(TypeParser::class),
                         new RuntimeCache($this->get(Cache::class)), // @phpstan-ignore argument.type
-                        new TypeMapperFactory(
-                            $this->get(ClassDefinitionRepository::class),
-                            $this->get(ObjectBuilderFactory::class),
-                            $this->get(InterfaceInferringContainer::class),
-                            $this->get(TypeDumper::class),
-                            $this->get(FunctionDefinitionRepository::class),
-                            $settings->convertersSortedByPriority(),
-                            $settings->keyConverters,
-                        ),
+                        $this->get(TypeMapperFactory::class),
+                        $this->get(CacheCallbackCollector::class),
                         $settings,
                     );
                 }
@@ -104,6 +101,39 @@ final class Container
                     $this->get(RootNodeBuilder::class),
                 );
             },
+
+            TypeMapperFactory::class => fn () => new TypeMapperFactory(
+                $this->get(ClassDefinitionRepository::class),
+                $this->get(ObjectBuilderFactory::class),
+                $this->get(InterfaceInferringContainer::class),
+                $this->get(TypeDumper::class),
+                $this->get(ConstructorCallbackRegistry::class),
+                $this->get(ConverterAnalyzer::class),
+                $this->get(KeyConverterHandler::class),
+            ),
+
+            ConstructorCallbackRegistry::class => fn () => new ConstructorCallbackRegistry(),
+
+            ConverterAnalyzer::class => function () use ($settings) {
+                return new ConverterAnalyzer(
+                    $this->get(FunctionDefinitionRepository::class),
+                    $settings->convertersSortedByPriority(),
+                );
+            },
+
+            KeyConverterHandler::class => function () use ($settings) {
+                return new KeyConverterHandler(
+                    $this->get(FunctionDefinitionRepository::class),
+                    $settings->keyConverters,
+                );
+            },
+
+            CacheCallbackCollector::class => fn () => new CacheCallbackCollector(
+                $this->get(ClassDefinitionRepository::class),
+                $this->get(ObjectBuilderFactory::class),
+                $this->get(InterfaceInferringContainer::class),
+                $this->get(ConverterAnalyzer::class),
+            ),
 
             ArgumentsMapper::class => fn () => new TypeArgumentsMapper(
                 $this->get(FunctionDefinitionRepository::class),
