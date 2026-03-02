@@ -7,6 +7,9 @@ namespace CuyZ\Valinor\Compiler\Native;
 use CuyZ\Valinor\Compiler\Compiler;
 use CuyZ\Valinor\Compiler\Node;
 
+use function addcslashes;
+use function str_contains;
+
 /** @internal */
 final class InstanceOfNode extends Node
 {
@@ -19,6 +22,10 @@ final class InstanceOfNode extends Node
     public function compile(Compiler $compiler): Compiler
     {
         $className = $this->className;
+
+        if (str_contains($className, '@anonymous')) {
+            $className = '("' . addcslashes($this->className, "\0\"\\$") . '")';
+        }
 
         return $compiler
             ->compile($this->node)

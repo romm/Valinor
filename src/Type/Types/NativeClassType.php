@@ -14,6 +14,7 @@ use function array_map;
 use function implode;
 use function is_a;
 use function ltrim;
+use function str_contains;
 
 /** @internal */
 final class NativeClassType implements ClassType, ObjectWithGenericType
@@ -92,8 +93,12 @@ final class NativeClassType implements ClassType, ObjectWithGenericType
         );
     }
 
-    public function nativeType(): NativeClassType
+    public function nativeType(): NativeClassType|UndefinedObjectType
     {
+        if (str_contains($this->className, '@anonymous')) {
+            return UndefinedObjectType::get();
+        }
+
         return new self($this->className);
     }
 

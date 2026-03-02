@@ -7,11 +7,8 @@ namespace CuyZ\Valinor\Mapper\Object;
 use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\ClassDefinition;
-use CuyZ\Valinor\Definition\PropertyDefinition;
-use CuyZ\Valinor\Utility\Polyfill;
 
 use function count;
-use function iterator_to_array;
 
 /** @internal */
 final class ReflectionObjectBuilder implements ObjectBuilder
@@ -49,24 +46,16 @@ final class ReflectionObjectBuilder implements ObjectBuilder
             Node::variable('object')->assign(Node::newClass($this->class->name))->asExpression(),
         ];
 
-        $hasOnlyPublicProperties = Polyfill::array_all(
-            iterator_to_array($this->class->properties),
-            fn (PropertyDefinition $property): bool => $property->isPublic,
-        );
-
-        if ($hasOnlyPublicProperties) {
-            foreach ($this->class->properties as $property) {
-                $nodes[] = Node::variable('object')->access($property->name)->assign($values->key(Node::value($property->name)))->asExpression();
-            }
-        } else {
-            $nodes[] = Node::closure(
-                ...(function () use ($values) {
-                    foreach ($this->class->properties as $property) {
-                        yield Node::variable('this')->access($property->name)->assign($values->key(Node::value($property->name)))->asExpression();
-                    }
-                })(),
-            )->uses('values')->wrap()->callMethod('call', [Node::variable('object')])->asExpression();
-        }
+        // @todo we should check if properties are not readonly, in which case we don't need ->call()
+        // Always use the closure approach with ->call() to support readonly
+        // properties, which require being set from within the class scope.
+        $nodes[] = Node::closure(
+            ...(function () use ($values) {
+                foreach ($this->class->properties as $property) {
+                    yield Node::variable('this')->access($property->name)->assign($values->key(Node::value($property->name)))->asExpression();
+                }
+            })(),
+        )->uses('values')->wrap()->callMethod('call', [Node::variable('object')])->asExpression();
 
         return [
             ...$nodes,
