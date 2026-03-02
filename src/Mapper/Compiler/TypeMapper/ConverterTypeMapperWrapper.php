@@ -18,13 +18,10 @@ use CuyZ\Valinor\Type\Type;
 use CuyZ\Valinor\Utility\ValueDumper;
 use Throwable;
 
-use function hash;
-use function preg_replace;
-use function strtolower;
-
 /** @internal */
 final class ConverterTypeMapperWrapper implements TypeMapper
 {
+    use TypeMapperMethodName;
     /**
      * @param array<int, array{key: string, paramType: Type, paramCount: int}> $matchingConverters
      */
@@ -213,8 +210,6 @@ final class ConverterTypeMapperWrapper implements TypeMapper
      */
     private function methodName(): string
     {
-        $slug = preg_replace('/[^a-z0-9]+/', '_', strtolower($this->targetType->toString()));
-
         // Include converter keys in hash so methods with different converter
         // sets (e.g. attribute converters on different properties of the same
         // type) get distinct method names.
@@ -224,6 +219,6 @@ final class ConverterTypeMapperWrapper implements TypeMapper
             $hashInput .= '|' . $conv['key'];
         }
 
-        return "convert_and_map_{$slug}_" . hash('crc32', $hashInput);
+        return self::buildMethodName('convert_and_map', $this->targetType->toString(), $hashInput);
     }
 }

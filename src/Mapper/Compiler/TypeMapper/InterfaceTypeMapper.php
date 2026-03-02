@@ -23,13 +23,11 @@ use function array_keys;
 use function implode;
 
 use function count;
-use function hash;
-use function preg_replace;
-use function strtolower;
 
 /** @internal */
 final class InterfaceTypeMapper implements TypeMapper
 {
+    use TypeMapperMethodName;
     /**
      * @param array<string, ClassType> $implementations
      */
@@ -338,8 +336,6 @@ final class InterfaceTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        $slug = preg_replace('/[^a-z0-9]+/', '_', strtolower($this->type->toString()));
-
-        return "map_interface_{$slug}_" . hash('crc32', $this->type->toString());
+        return self::buildMethodName('map_interface', $this->type->toString());
     }
 }

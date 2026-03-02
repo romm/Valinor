@@ -39,39 +39,11 @@ final class NativeConstructorObjectBuilder implements ObjectBuilder
      */
     public function compile(ComplianceNode $values): array
     {
-        // Check for variadic parameters
-        $variadicName = null;
+        $variadicNodes = VariadicCompiler::compileVariadicArgs($this->class->methods->constructor()->parameters, $values);
 
-        foreach ($this->class->methods->constructor()->parameters as $parameter) {
-            if ($parameter->isVariadic) {
-                $variadicName = $parameter->name;
-
-                break;
-            }
-        }
-
-        if ($variadicName !== null) {
-            // Flatten variadic: build positional args list, then spread
-            $nonVariadicNames = [];
-
-            foreach ($this->class->methods->constructor()->parameters as $parameter) {
-                if (! $parameter->isVariadic) {
-                    $nonVariadicNames[] = $parameter->name;
-                }
-            }
-
-            $flatParts = [];
-
-            foreach ($nonVariadicNames as $name) {
-                $flatParts[] = Node::array([$values->key(Node::value($name))]);
-            }
-
-            $flatParts[] = Node::functionCall('array_values', [$values->key(Node::value($variadicName))]);
-
+        if ($variadicNodes !== null) {
             return [
-                Node::variable('__flatArgs')->assign(
-                    count($flatParts) === 1 ? $flatParts[0] : Node::functionCall('array_merge', $flatParts),
-                )->asExpression(),
+                ...$variadicNodes,
                 Node::try(
                     Node::return(Node::newClass($this->class->name, Node::variable('__flatArgs')->unpack()))->asExpression(),
                 )->catches(

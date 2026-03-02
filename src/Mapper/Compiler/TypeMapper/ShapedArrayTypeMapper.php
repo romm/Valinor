@@ -24,13 +24,11 @@ use CuyZ\Valinor\Type\VacantType;
 use CuyZ\Valinor\Utility\ValueDumper;
 
 use function array_keys;
-use function hash;
-use function preg_replace;
-use function strtolower;
 
 /** @internal */
 final class ShapedArrayTypeMapper implements TypeMapper
 {
+    use TypeMapperMethodName;
     public function __construct(
         private ShapedArrayType $type,
         private bool $applyKeyConverters = true,
@@ -61,42 +59,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
         // Compute effective type signature for error messages
         $dumpedType = $typeMapperFactory->dumpType($this->type);
 
-        $nodes = [];
-
-        if ($settings->allowUndefinedValues) {
-            $nodes[] = Node::if(
-                condition: Node::variable('source')->equals(Node::value(null)),
-                body: Node::variable('source')->assign(Node::value([]))->asExpression(),
-            );
-        } else {
-            // Null check with "missing" error body
-            $nodes[] = Node::if(
-                condition: Node::variable('source')->equals(Node::value(null)),
-                body: [
-                    Node::variable('context')->callMethod('addMessage', [
-                        new MessageNode(new SourceMustBeIterable(null)),
-                        Node::value($this->type->toString()),
-                        Node::value('*missing*'),
-                        Node::value($dumpedType),
-                    ])->asExpression(),
-                    Node::return(Node::value(null)),
-                ],
-            );
-        }
-
-        // Non-iterable check with value error body (source is non-null here)
-        $nodes[] = Node::if(
-            condition: Node::negate(Node::functionCall('is_iterable', [Node::variable('source')])),
-            body: [
-                Node::variable('context')->callMethod('addMessage', [
-                    new MessageNode(new SourceMustBeIterable('value')),
-                    Node::value($this->type->toString()),
-                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                    Node::value($dumpedType),
-                ])->asExpression(),
-                Node::return(Node::value(null)),
-            ],
-        );
+        $nodes = IterableValidationNodes::build($settings, $this->type, $dumpedType);
 
         // Convert to array if needed
         $nodes[] = Node::if(
@@ -108,70 +71,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
 
         // Apply key converters if configured
         if ($this->applyKeyConverters && $typeMapperFactory->hasKeyConverters()) {
-            $keyConverterKeys = $typeMapperFactory->keyConverterKeys();
-
-            // Build converter chain: apply each converter to the key
-            $keyVarNode = Node::variable('ck');
-            $converterNodes = [];
-
-            foreach ($keyConverterKeys as $kcKey) {
-                $converterNodes[] = $keyVarNode->assign(
-                    Node::this()->access('constructorCallbacks')->key(Node::value($kcKey))->call([$keyVarNode]),
-                )->asExpression();
-            }
-
-            $nodes[] = Node::variable('convertedSource')->assign(Node::value([]))->asExpression();
-            $nodes[] = Node::variable('nameMap')->assign(Node::value([]))->asExpression();
-
-            $tryBody = array_merge($converterNodes, [
-                Node::variable('convertedSource')->key($keyVarNode)->assign(
-                    Node::variable('origVal'),
-                )->asExpression(),
-                Node::variable('nameMap')->key($keyVarNode)->assign(
-                    Node::functionCall('strval', [Node::variable('origKey')]),
-                )->asExpression(),
-            ]);
-
-            $forEachBody = [
-                $keyVarNode->assign(
-                    Node::functionCall('strval', [Node::variable('origKey')]),
-                )->asExpression(),
-                Node::try(...$tryBody)->catches(
-                    Exception::class,
-                    // If exception is already a Message, use it directly; otherwise filter
-                    Node::if(
-                        condition: Node::negate(Node::variable('exception')->instanceOf(Message::class)),
-                        body: Node::variable('exception')->assign(
-                            Node::property('exceptionFilter')->wrap()->call([Node::variable('exception')]),
-                        )->asExpression(),
-                    ),
-                    Node::variable('context')->callMethod('sub', [
-                        Node::functionCall('strval', [Node::variable('origKey')]),
-                    ])->callMethod('addMessage', [
-                        Node::variable('exception'),
-                        Node::value('?'),
-                        Node::functionCall('strval', [Node::variable('origKey')]),
-                    ])->asExpression(),
-                ),
-            ];
-
-            $nodes[] = Node::forEach(
-                Node::variable('source'),
-                'origKey',
-                'origVal',
-                $forEachBody,
-            );
-
-            $nodes[] = Node::variable('source')->assign(Node::variable('convertedSource'))->asExpression();
-            $nodes[] = Node::variable('context')->callMethod('setNameMap', [
-                Node::variable('nameMap'),
-            ])->asExpression();
-
-            // If key conversion caused errors, stop immediately
-            $nodes[] = Node::if(
-                condition: Node::variable('context')->callMethod('containsErrors'),
-                body: Node::return(Node::value(null)),
-            );
+            $nodes = [...$nodes, ...KeyConverterNodes::build($typeMapperFactory, wrapInArrayCheck: false)];
         }
 
         // Initialize result array
@@ -191,7 +91,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
             try {
                 $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
             } catch (CannotMapToPermissiveType) {
-                throw CannotMapToPermissiveType::forType($element->type()->toString(), (string)$key);
+                throw new CannotMapToPermissiveType($element->type()->toString(), (string)$key);
             }
 
             $keyStr = (string)$key;
@@ -293,12 +193,13 @@ final class ShapedArrayTypeMapper implements TypeMapper
                 $nodes[] = Node::if(
                     condition: Node::negate(Node::variable('remaining')->equals(Node::value([]))->wrap()),
                     body: Node::throw(
-                        Node::class(CannotMapToPermissiveType::class)->callStaticMethod('forType', [
+                        Node::newClass(
+                            CannotMapToPermissiveType::class,
                             Node::value($permissiveTypeName),
                             Node::functionCall('strval', [
                                 Node::functionCall('array_key_first', [Node::variable('remaining')]),
                             ]),
-                        ]),
+                        ),
                     )->asExpression(),
                 );
             } elseif (! $unsealedType instanceof VacantType) {
@@ -383,13 +284,12 @@ final class ShapedArrayTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        $slug = preg_replace('/[^a-z0-9]+/', '_', strtolower($this->type->toString()));
         $hashInput = $this->type->toString();
 
         if (! $this->applyKeyConverters) {
             $hashInput .= '|no_kc';
         }
 
-        return "map_shaped_array_{$slug}_" . hash('crc32', $hashInput);
+        return self::buildMethodName('map_shaped_array', $this->type->toString(), $hashInput);
     }
 }

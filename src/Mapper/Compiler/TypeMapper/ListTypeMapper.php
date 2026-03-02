@@ -18,13 +18,10 @@ use CuyZ\Valinor\Type\Types\ListType;
 use CuyZ\Valinor\Type\Types\NonEmptyListType;
 use CuyZ\Valinor\Utility\ValueDumper;
 
-use function hash;
-use function preg_replace;
-use function strtolower;
-
 /** @internal */
 final class ListTypeMapper implements TypeMapper
 {
+    use TypeMapperMethodName;
     public function __construct(
         private ListType|NonEmptyListType $type,
     ) {}
@@ -54,40 +51,7 @@ final class ListTypeMapper implements TypeMapper
         $subMapper = $typeMapperFactory->for($this->type->subType());
         $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
 
-        $nodes = [];
-
-        if ($settings->allowUndefinedValues) {
-            $nodes[] = Node::if(
-                condition: Node::variable('source')->equals(Node::value(null)),
-                body: Node::variable('source')->assign(Node::value([]))->asExpression(),
-            );
-        } else {
-            // Null check with "missing" error body
-            $nodes[] = Node::if(
-                condition: Node::variable('source')->equals(Node::value(null)),
-                body: [
-                    Node::variable('context')->callMethod('addMessage', [
-                        new MessageNode(new SourceMustBeIterable(null)),
-                        Node::value($this->type->toString()),
-                        Node::value('*missing*'),
-                    ])->asExpression(),
-                    Node::return(Node::value(null)),
-                ],
-            );
-        }
-
-        // Non-iterable check with value error body (source is non-null here)
-        $nodes[] = Node::if(
-            condition: Node::negate(Node::functionCall('is_iterable', [Node::variable('source')])),
-            body: [
-                Node::variable('context')->callMethod('addMessage', [
-                    new MessageNode(new SourceMustBeIterable('value')),
-                    Node::value($this->type->toString()),
-                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                ])->asExpression(),
-                Node::return(Node::value(null)),
-            ],
-        );
+        $nodes = IterableValidationNodes::build($settings, $this->type);
 
         // Check non-empty for NonEmptyListType
         if ($this->type instanceof NonEmptyListType) {
@@ -161,8 +125,6 @@ final class ListTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        $slug = preg_replace('/[^a-z0-9]+/', '_', strtolower($this->type->toString()));
-
-        return "map_list_{$slug}_" . hash('crc32', $this->type->toString());
+        return self::buildMethodName('map_list', $this->type->toString());
     }
 }

@@ -13,13 +13,10 @@ use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotResolveObjectType;
 use CuyZ\Valinor\Type\ObjectType;
 
-use function hash;
-use function preg_replace;
-use function strtolower;
-
 /** @internal */
 final class InterfacePassthroughTypeMapper implements TypeMapper
 {
+    use TypeMapperMethodName;
     public function __construct(
         private ObjectType $type,
     ) {}
@@ -70,8 +67,6 @@ final class InterfacePassthroughTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        $slug = preg_replace('/[^a-z0-9]+/', '_', strtolower($this->type->toString()));
-
-        return "map_passthrough_{$slug}_" . hash('crc32', $this->type->toString());
+        return self::buildMethodName('map_passthrough', $this->type->toString());
     }
 }

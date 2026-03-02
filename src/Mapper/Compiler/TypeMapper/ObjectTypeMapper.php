@@ -28,6 +28,7 @@ use CuyZ\Valinor\Type\Types\UnionType;
 use CuyZ\Valinor\Utility\ValueDumper;
 
 use function array_filter;
+
 use function array_merge;
 use function count;
 use function hash;
@@ -36,6 +37,8 @@ use function strtolower;
 
 final class ObjectTypeMapper implements TypeMapper
 {
+    use TypeMapperMethodName;
+
     public function __construct(
         private ClassDefinition $class,
         /** @var non-empty-list<ObjectBuilder> */
@@ -84,69 +87,7 @@ final class ObjectTypeMapper implements TypeMapper
 
         // Apply key converters when source is an array
         if ($typeMapperFactory->hasKeyConverters()) {
-            $keyConverterKeys = $typeMapperFactory->keyConverterKeys();
-
-            $keyVarNode = Node::variable('ck');
-            $converterNodes = [];
-
-            foreach ($keyConverterKeys as $kcKey) {
-                $converterNodes[] = $keyVarNode->assign(
-                    Node::this()->access('constructorCallbacks')->key(Node::value($kcKey))->call([$keyVarNode]),
-                )->asExpression();
-            }
-
-            $objTryBody = array_merge($converterNodes, [
-                Node::variable('convertedSource')->key($keyVarNode)->assign(
-                    Node::variable('origVal'),
-                )->asExpression(),
-                Node::variable('nameMap')->key($keyVarNode)->assign(
-                    Node::functionCall('strval', [Node::variable('origKey')]),
-                )->asExpression(),
-            ]);
-
-            $nodes[] = Node::if(
-                condition: Node::functionCall('is_array', [Node::variable('source')]),
-                body: [
-                    Node::variable('convertedSource')->assign(Node::value([]))->asExpression(),
-                    Node::variable('nameMap')->assign(Node::value([]))->asExpression(),
-                    Node::forEach(
-                        Node::variable('source'),
-                        'origKey',
-                        'origVal',
-                        [
-                            $keyVarNode->assign(
-                                Node::functionCall('strval', [Node::variable('origKey')]),
-                            )->asExpression(),
-                            Node::try(...$objTryBody)->catches(
-                                Exception::class,
-                                Node::if(
-                                    condition: Node::negate(Node::variable('exception')->instanceOf(Message::class)),
-                                    body: Node::variable('exception')->assign(
-                                        Node::property('exceptionFilter')->wrap()->call([Node::variable('exception')]),
-                                    )->asExpression(),
-                                ),
-                                Node::variable('context')->callMethod('sub', [
-                                    Node::functionCall('strval', [Node::variable('origKey')]),
-                                ])->callMethod('addMessage', [
-                                    Node::variable('exception'),
-                                    Node::value('?'),
-                                    Node::functionCall('strval', [Node::variable('origKey')]),
-                                ])->asExpression(),
-                            ),
-                        ],
-                    ),
-                    Node::variable('source')->assign(Node::variable('convertedSource'))->asExpression(),
-                    Node::variable('context')->callMethod('setNameMap', [
-                        Node::variable('nameMap'),
-                    ])->asExpression(),
-                ],
-            );
-
-            // If key conversion caused errors, stop immediately
-            $nodes[] = Node::if(
-                condition: Node::variable('context')->callMethod('containsErrors'),
-                body: Node::return(Node::value(null)),
-            );
+            $nodes = [...$nodes, ...KeyConverterNodes::build($typeMapperFactory, wrapInArrayCheck: true)];
         }
 
         $hasMultipleBuilders = count($this->builders) > 1;
@@ -278,27 +219,7 @@ final class ObjectTypeMapper implements TypeMapper
 
         $tryBody = array_merge($defaultNodes, $builder->compile(Node::variable('values')));
         $buildNodes = [
-            Node::try(...$tryBody)->catches(
-                UserlandError::class,
-                Node::variable('context')->callMethod('addMessage', [
-                    Node::property('exceptionFilter')->wrap()->call([
-                        Node::variable('exception')->callMethod('getPrevious'),
-                    ]),
-                    Node::value($this->class->type->toString()),
-                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                    Node::value($dumpedType),
-                ])->asExpression(),
-                Node::return(Node::value(null)),
-            )->catches(
-                Message::class,
-                Node::variable('context')->callMethod('addMessage', [
-                    Node::variable('exception'),
-                    Node::value($this->class->type->toString()),
-                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                    Node::value($dumpedType),
-                ])->asExpression(),
-                Node::return(Node::value(null)),
-            ),
+            $this->buildConstructionTryNode($tryBody, $dumpedType),
         ];
 
         if ($hasFlatPath) {
@@ -448,28 +369,9 @@ final class ObjectTypeMapper implements TypeMapper
                 )->asExpression(),
             );
         }
+        $tryBody = array_merge($defaultAndBuildNodes, $builder->compile(Node::variable('values')));
         $defaultAndBuildNodes = [
-            Node::try(...$defaultAndBuildNodes, ...$builder->compile(Node::variable('values')))->catches(
-                UserlandError::class,
-                Node::variable('context')->callMethod('addMessage', [
-                    Node::property('exceptionFilter')->wrap()->call([
-                        Node::variable('exception')->callMethod('getPrevious'),
-                    ]),
-                    Node::value($this->class->type->toString()),
-                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                    Node::value($dumpedType),
-                ])->asExpression(),
-                Node::return(Node::value(null)),
-            )->catches(
-                Message::class,
-                Node::variable('context')->callMethod('addMessage', [
-                    Node::variable('exception'),
-                    Node::value($this->class->type->toString()),
-                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                    Node::value($dumpedType),
-                ])->asExpression(),
-                Node::return(Node::value(null)),
-            ),
+            $this->buildConstructionTryNode($tryBody, $dumpedType),
         ];
 
         // Keyed path condition: source is array with the argument name as key
@@ -561,9 +463,10 @@ final class ObjectTypeMapper implements TypeMapper
         );
 
         // Apply default values for optional arguments
+        $defaultNodes = [];
         foreach ($arguments as $argument) {
             if (! $argument->isRequired()) {
-                $nodes[] = Node::if(
+                $defaultNodes[] = Node::if(
                     condition: Node::negate(Node::functionCall('array_key_exists', [
                         Node::value($argument->name()),
                         Node::variable('values'),
@@ -575,7 +478,18 @@ final class ObjectTypeMapper implements TypeMapper
             }
         }
 
-        $nodes[] = Node::try(...$builder->compile(Node::variable('values')))->catches(
+        $tryBody = array_merge($defaultNodes, $builder->compile(Node::variable('values')));
+        $nodes[] = $this->buildConstructionTryNode($tryBody, $dumpedType);
+    }
+
+    /**
+     * Wraps try body in try/catch handling for UserlandError and Message exceptions.
+     *
+     * @param non-empty-list<Node> $tryBody
+     */
+    private function buildConstructionTryNode(array $tryBody, string $dumpedType): Node
+    {
+        return Node::try(...$tryBody)->catches(
             UserlandError::class,
             Node::variable('context')->callMethod('addMessage', [
                 Node::property('exceptionFilter')->wrap()->call([
@@ -612,8 +526,6 @@ final class ObjectTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        $slug = preg_replace('/[^a-z0-9]+/', '_', strtolower($this->class->type->toString()));
-
-        return "map_object_{$slug}_" . hash('crc32', $this->class->type->toString());
+        return self::buildMethodName('map_object', $this->class->type->toString());
     }
 }

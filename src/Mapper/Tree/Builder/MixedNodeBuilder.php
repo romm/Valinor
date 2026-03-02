@@ -18,7 +18,7 @@ final class MixedNodeBuilder implements NodeBuilder
         assert($shell->type instanceof MixedType);
 
         if (! $shell->allowPermissiveTypes) {
-            throw new CannotMapToPermissiveType($shell);
+            throw new CannotMapToPermissiveType($shell->type->toString(), $shell->path);
         }
 
         return $shell->node($shell->value());

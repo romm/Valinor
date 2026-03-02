@@ -23,7 +23,7 @@ final class MixedTypeMapper implements TypeMapper
     public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
         if (! $settings->allowPermissiveTypes) {
-            throw CannotMapToPermissiveType::forType('mixed');
+            throw new CannotMapToPermissiveType('mixed');
         }
 
         return $class;

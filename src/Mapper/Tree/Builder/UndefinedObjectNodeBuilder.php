@@ -20,7 +20,7 @@ final class UndefinedObjectNodeBuilder implements NodeBuilder
         assert($shell->type instanceof UndefinedObjectType);
 
         if (! $shell->allowPermissiveTypes) {
-            throw new CannotMapToPermissiveType($shell);
+            throw new CannotMapToPermissiveType($shell->type->toString(), $shell->path);
         }
 
         $value = $shell->value();

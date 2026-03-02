@@ -26,14 +26,12 @@ use CuyZ\Valinor\Utility\TypeHelper;
 
 use function array_map;
 use function count;
-use function hash;
 use function implode;
-use function preg_replace;
-use function strtolower;
 
 /** @internal */
 final class UnionTypeMapper implements TypeMapper
 {
+    use TypeMapperMethodName;
     public function __construct(
         private UnionType $type,
     ) {}
@@ -290,8 +288,6 @@ final class UnionTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        $slug = preg_replace('/[^a-z0-9]+/', '_', strtolower($this->type->toString()));
-
-        return "map_union_{$slug}_" . hash('crc32', $this->type->toString());
+        return self::buildMethodName('map_union', $this->type->toString());
     }
 }

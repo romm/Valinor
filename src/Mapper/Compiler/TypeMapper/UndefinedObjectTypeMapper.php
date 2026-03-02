@@ -29,7 +29,7 @@ final class UndefinedObjectTypeMapper implements TypeMapper
     public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
         if (! $settings->allowPermissiveTypes) {
-            throw CannotMapToPermissiveType::forType('object');
+            throw new CannotMapToPermissiveType('object');
         }
 
         if ($class->hasMethod('map_object')) {

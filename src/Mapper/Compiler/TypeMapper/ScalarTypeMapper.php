@@ -17,12 +17,9 @@ use CuyZ\Valinor\Type\Types\UnionType;
 
 use CuyZ\Valinor\Utility\ValueDumper;
 
-use function hash;
-use function preg_replace;
-use function strtolower;
-
 final class ScalarTypeMapper implements TypeMapper
 {
+    use TypeMapperMethodName;
     public function __construct(
         private ScalarType $type,
     ) {}
@@ -132,8 +129,6 @@ final class ScalarTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        $slug = preg_replace('/[^a-z0-9]+/', '_', strtolower($this->type->toString()));
-
-        return "map_{$slug}_" . hash('crc32', $this->type->toString());
+        return self::buildMethodName('map', $this->type->toString());
     }
 }

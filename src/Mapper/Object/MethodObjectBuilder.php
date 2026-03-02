@@ -43,38 +43,11 @@ final class MethodObjectBuilder implements ObjectBuilder
      */
     public function compile(ComplianceNode $values): array
     {
-        // Check for variadic parameters
-        $variadicName = null;
+        $variadicNodes = VariadicCompiler::compileVariadicArgs($this->parameters, $values);
 
-        foreach ($this->parameters as $parameter) {
-            if ($parameter->isVariadic) {
-                $variadicName = $parameter->name;
-
-                break;
-            }
-        }
-
-        if ($variadicName !== null) {
-            $nonVariadicNames = [];
-
-            foreach ($this->parameters as $parameter) {
-                if (! $parameter->isVariadic) {
-                    $nonVariadicNames[] = $parameter->name;
-                }
-            }
-
-            $flatParts = [];
-
-            foreach ($nonVariadicNames as $name) {
-                $flatParts[] = Node::array([$values->key(Node::value($name))]);
-            }
-
-            $flatParts[] = Node::functionCall('array_values', [$values->key(Node::value($variadicName))]);
-
+        if ($variadicNodes !== null) {
             return [
-                Node::variable('__flatArgs')->assign(
-                    count($flatParts) === 1 ? $flatParts[0] : Node::functionCall('array_merge', $flatParts),
-                )->asExpression(),
+                ...$variadicNodes,
                 Node::try(
                     Node::return(Node::class($this->className)->callStaticMethod($this->methodName, [Node::variable('__flatArgs')->unpack()]))->asExpression(),
                 )->catches(
