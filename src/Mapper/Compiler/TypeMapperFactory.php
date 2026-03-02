@@ -21,6 +21,7 @@ use CuyZ\Valinor\Type\Types\CallableType;
 use CuyZ\Valinor\Mapper\Tree\Builder\ConverterContainer;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ArrayTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ConverterTypeMapperWrapper;
+use CuyZ\Valinor\Mapper\Compiler\TypeMapper\InterfacePassthroughTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\InterfaceTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ListTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\MixedTypeMapper;
@@ -37,7 +38,7 @@ use CuyZ\Valinor\Mapper\Object\Factory\ObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;
 use CuyZ\Valinor\Mapper\Tree\Builder\InterfaceInferringContainer;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotInferFinalClass;
-use CuyZ\Valinor\Mapper\Tree\Exception\CannotResolveObjectType;
+use CuyZ\Valinor\Mapper\Tree\Exception\InterfaceHasBothConstructorAndInfer;
 use CuyZ\Valinor\Mapper\Tree\Exception\ObjectImplementationCallbackError;
 use CuyZ\Valinor\Type\CompositeTraversableType;
 use CuyZ\Valinor\Type\CompositeType;
@@ -57,6 +58,7 @@ use CuyZ\Valinor\Type\Types\ShapedArrayType;
 use CuyZ\Valinor\Type\Types\UndefinedObjectType;
 use CuyZ\Valinor\Type\Types\UnionType;
 use CuyZ\Valinor\Type\Types\UnresolvableType;
+use CuyZ\Valinor\Type\Dumper\TypeDumper;
 use CuyZ\Valinor\Mapper\Tree\Exception\UnresolvableShellType;
 use RuntimeException;
 
@@ -72,12 +74,18 @@ final class TypeMapperFactory
         private ClassDefinitionRepository $classDefinitionRepository,
         private ObjectBuilderFactory $objectBuilderFactory,
         private InterfaceInferringContainer $interfaceInferringContainer,
+        private TypeDumper $typeDumper,
         private ?FunctionDefinitionRepository $functionDefinitionRepository = null,
         /** @var list<callable> */
         private array $converters = [],
         /** @var list<callable(string): string> */
         private array $keyConverters = [],
     ) {}
+
+    public function dumpType(Type $type): string
+    {
+        return $this->typeDumper->dump($type);
+    }
 
     public function registerConstructorCallback(string $key, mixed $callback): void
     {
@@ -209,8 +217,16 @@ final class TypeMapperFactory
         if ($type instanceof ObjectType) {
             $class = $this->classDefinitionRepository->for($type);
 
+            $hasInfer = $this->interfaceInferringContainer->has($class->name);
+            $hasRegisteredConstructor = $this->hasRegisteredConstructorFor($type);
+
+            // Validate: interface cannot have both constructor and infer
+            if ($hasRegisteredConstructor && $hasInfer) {
+                throw new InterfaceHasBothConstructorAndInfer($class->name);
+            }
+
             // Check if this type has an infer function registered
-            if ($this->interfaceInferringContainer->has($class->name)) {
+            if ($hasInfer) {
                 if ($class->isFinal) {
                     $inferFunction = $this->interfaceInferringContainer->inferFunctionFor($class->name);
                     throw new CannotInferFinalClass($class->name, $inferFunction);
@@ -221,8 +237,11 @@ final class TypeMapperFactory
 
                 try {
                     $implementations = $this->interfaceInferringContainer->classImplementationsFor($class->name);
-                } catch (ObjectImplementationCallbackError $e) {
-                    throw $e->original();
+                } catch (ObjectImplementationCallbackError) {
+                    // Infer callback threw at compile time (e.g. always-throwing function).
+                    // Generate an InterfaceTypeMapper with no implementations — the generated
+                    // try/catch will handle the runtime exception gracefully.
+                    $implementations = [];
                 }
 
                 return new InterfaceTypeMapper(
@@ -233,9 +252,17 @@ final class TypeMapperFactory
                 );
             }
 
-            // Interface/abstract without infer → cannot be instantiated
+            // Interface/abstract with registered constructors → use ObjectTypeMapper
+            if (($type instanceof InterfaceType || $class->isAbstract) && $hasRegisteredConstructor) {
+                return new ObjectTypeMapper(
+                    $class,
+                    $this->objectBuilderFactory->for($class),
+                );
+            }
+
+            // Interface/abstract without infer or registered constructors → passthrough
             if ($type instanceof InterfaceType || $class->isAbstract) {
-                throw new CannotResolveObjectType($class->name);
+                return new InterfacePassthroughTypeMapper($type);
             }
 
             return new ObjectTypeMapper(
@@ -258,6 +285,20 @@ final class TypeMapperFactory
             $type instanceof IterableType => new ArrayTypeMapper($type),
             default => throw new RuntimeException('Unsupported type for compiled mapper: ' . $type->toString()),
         };
+    }
+
+    private function hasRegisteredConstructorFor(ObjectType $type): bool
+    {
+        $class = $this->classDefinitionRepository->for($type);
+        $builders = $this->objectBuilderFactory->for($class);
+
+        foreach ($builders as $builder) {
+            if ($builder instanceof FunctionObjectBuilder) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -442,8 +483,10 @@ final class TypeMapperFactory
 
                 try {
                     $implementations = $this->interfaceInferringContainer->classImplementationsFor($class->name);
-                } catch (ObjectImplementationCallbackError $e) {
-                    throw $e->original();
+                } catch (ObjectImplementationCallbackError) {
+                    // Infer callback threw — no implementations to collect.
+                    // The generated try/catch handles this at runtime.
+                    return;
                 }
 
                 $implsKey = InterfaceTypeMapper::implementationsKey($class->name);
@@ -455,9 +498,11 @@ final class TypeMapperFactory
                 return;
             }
 
-            // Interface/abstract without infer → skip (can't collect callbacks)
+            // Interface/abstract without infer → collect registered constructor callbacks if any
             if ($type instanceof InterfaceType || $class->isAbstract) {
-                return;
+                if (!$this->hasRegisteredConstructorFor($type)) {
+                    return;
+                }
             }
 
             $builders = $this->objectBuilderFactory->for($class);
@@ -484,6 +529,14 @@ final class TypeMapperFactory
             }
         } elseif ($type instanceof CompositeTraversableType) {
             $this->collectCallbacksForType($type->subType(), $visited);
+        } elseif ($type instanceof ScalarType) {
+            // Register canCast/cast callbacks for scalar types.
+            // These are needed when allowScalarValueCasting is enabled;
+            // registering them unconditionally is harmless since unused keys are ignored.
+            $canCastKey = 'canCast_' . hash('crc32', $type->toString());
+            $castKey = 'cast_' . hash('crc32', $type->toString());
+            $this->registerConstructorCallback($canCastKey, $type->canCast(...));
+            $this->registerConstructorCallback($castKey, $type->cast(...));
         }
     }
 

@@ -62,7 +62,7 @@ final class ScalarTypeMapper implements TypeMapper
             $nodes = [
                 ...$nodes,
                 Node::if(
-                    condition: Node::negate($this->type->compiledAccept(Node::variable('source'))),
+                    condition: Node::negate($this->type->compiledAccept(Node::variable('source'))->wrap()),
                     body: [
                         Node::variable('context')->callMethod(
                             method: 'addMessage',
@@ -78,6 +78,12 @@ final class ScalarTypeMapper implements TypeMapper
                 Node::return(Node::variable('source')),
             ];
         } else {
+            // Register canCast and cast callbacks for runtime use
+            $canCastKey = 'canCast_' . hash('crc32', $this->type->toString());
+            $castKey = 'cast_' . hash('crc32', $this->type->toString());
+            $typeMapperFactory->registerConstructorCallback($canCastKey, $this->type->canCast(...));
+            $typeMapperFactory->registerConstructorCallback($castKey, $this->type->cast(...));
+
             $nodes = [
                 ...$nodes,
                 Node::if(
@@ -85,13 +91,15 @@ final class ScalarTypeMapper implements TypeMapper
                     body: Node::return(Node::variable('source')),
                 ),
                 Node::if(
-                    condition: Node::value(true), // @todo canCast
-                    body: Node::return(Node::variable('source')->castTo($this->type)),
+                    condition: Node::this()->access('constructorCallbacks')->key(Node::value($canCastKey))->call([Node::variable('source')]),
+                    body: Node::return(
+                        Node::this()->access('constructorCallbacks')->key(Node::value($castKey))->call([Node::variable('source')]),
+                    ),
                 ),
                 Node::variable('context')->callMethod('addMessage', [
                     new MessageNode($this->type->errorMessage()),
                     Node::value($this->type->toString()),
-                    Node::variable('source'),
+                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
                 ])->asExpression(),
                 Node::return(Node::value(null)),
             ];

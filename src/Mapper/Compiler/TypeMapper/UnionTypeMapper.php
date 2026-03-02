@@ -10,6 +10,7 @@ use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
+use CuyZ\Valinor\Mapper\Compiler\TypeMapper\InterfacePassthroughTypeMapper;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotResolveObjectType;
 use CuyZ\Valinor\Type\ClassType;
 use CuyZ\Valinor\Type\FixedType;
@@ -80,11 +81,9 @@ final class UnionTypeMapper implements TypeMapper
             );
         }
 
-        // Expected signature for unions
+        // Expected signature for unions — use TypeDumper for readable types
         $expectedSignature = implode(', ', array_map(
-            static fn ($t) => ($t instanceof FixedType || $t instanceof EnumType || $t instanceof VacantType)
-                ? $t->toString()
-                : '`' . $t->toString() . '`',
+            fn ($t) => $typeMapperFactory->dumpType($t),
             $this->type->types(),
         ));
 
@@ -183,6 +182,12 @@ final class UnionTypeMapper implements TypeMapper
             foreach ($nonNullTypes as $i => $subType) {
                 try {
                     $subMapper = $typeMapperFactory->for($subType);
+
+                    // Skip unresolvable interfaces in union context
+                    if ($subMapper instanceof InterfacePassthroughTypeMapper) {
+                        continue;
+                    }
+
                     $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
                 } catch (CannotResolveObjectType) {
                     // Interface with no implementation — skip this type

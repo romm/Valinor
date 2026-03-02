@@ -58,6 +58,9 @@ final class ShapedArrayTypeMapper implements TypeMapper
         // Register a placeholder method to prevent infinite recursion.
         $class = $class->withMethods(Node::method($methodName));
 
+        // Compute effective type signature for error messages
+        $dumpedType = $typeMapperFactory->dumpType($this->type);
+
         $nodes = [];
 
         if ($settings->allowUndefinedValues) {
@@ -74,6 +77,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
                         new MessageNode(new SourceMustBeIterable(null)),
                         Node::value($this->type->toString()),
                         Node::value('*missing*'),
+                        Node::value($dumpedType),
                     ])->asExpression(),
                     Node::return(Node::value(null)),
                 ],
@@ -88,6 +92,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
                     new MessageNode(new SourceMustBeIterable('value')),
                     Node::value($this->type->toString()),
                     Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
+                    Node::value($dumpedType),
                 ])->asExpression(),
                 Node::return(Node::value(null)),
             ],
@@ -161,6 +166,12 @@ final class ShapedArrayTypeMapper implements TypeMapper
             $nodes[] = Node::variable('context')->callMethod('setNameMap', [
                 Node::variable('nameMap'),
             ])->asExpression();
+
+            // If key conversion caused errors, stop immediately
+            $nodes[] = Node::if(
+                condition: Node::variable('context')->callMethod('containsErrors'),
+                body: Node::return(Node::value(null)),
+            );
         }
 
         // Initialize result array
@@ -231,7 +242,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
                     );
                 } else {
                     // When undefined values are NOT allowed, add a proper missing value error
-                    $expectedSig = MappingContext::expectedSignatureForType($element->type());
+                    $dumpedElementType = $typeMapperFactory->dumpType($element->type());
                     $nodes[] = Node::if(
                         condition: Node::negate(Node::functionCall('array_key_exists', [
                             Node::value($key),
@@ -241,7 +252,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
                             new MessageNode(MissingNodeValue::from($element->type())),
                             Node::value($element->type()->toString()),
                             Node::value('*missing*'),
-                            Node::value($expectedSig),
+                            Node::value($dumpedElementType),
                         ])->asExpression(),
                     );
                 }
@@ -280,7 +291,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
                 )->asExpression();
 
                 $nodes[] = Node::if(
-                    condition: Node::negate(Node::variable('remaining')->equals(Node::value([]))),
+                    condition: Node::negate(Node::variable('remaining')->equals(Node::value([]))->wrap()),
                     body: Node::throw(
                         Node::class(CannotMapToPermissiveType::class)->callStaticMethod('forType', [
                             Node::value($permissiveTypeName),
@@ -342,6 +353,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
                         new MessageNode(new UnexpectedKeyInSource()),
                         Node::value($this->type->toString()),
                         Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('extraValue')]),
+                        Node::value($dumpedType),
                     ])->asExpression(),
                 ),
             );

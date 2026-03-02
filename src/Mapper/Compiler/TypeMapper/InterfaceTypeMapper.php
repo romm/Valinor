@@ -31,7 +31,7 @@ use function strtolower;
 final class InterfaceTypeMapper implements TypeMapper
 {
     /**
-     * @param non-empty-array<string, ClassType> $implementations
+     * @param array<string, ClassType> $implementations
      */
     public function __construct(
         private ObjectType $type,
@@ -84,9 +84,19 @@ final class InterfaceTypeMapper implements TypeMapper
 
         if ($argCount === 0) {
             // No arguments: call infer function directly with no args
-            $nodes[] = Node::variable('className')->assign(
-                Node::this()->access('constructorCallbacks')->key(Node::value($callbackKey))->call(),
-            )->asExpression();
+            $nodes[] = Node::try(
+                Node::variable('className')->assign(
+                    Node::this()->access('constructorCallbacks')->key(Node::value($callbackKey))->call(),
+                )->asExpression(),
+            )->catches(
+                \Exception::class,
+                Node::variable('context')->callMethod('addMessage', [
+                    Node::property('exceptionFilter')->wrap()->call([Node::variable('exception')]),
+                    Node::value($this->type->toString()),
+                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
+                ])->asExpression(),
+                Node::return(Node::value(null)),
+            );
         } elseif ($argCount === 1) {
             // Single-arg infer: handle scalar flattening like ObjectTypeMapper.
             // Source can be either a scalar (passed directly) or an array with the arg key.
@@ -129,7 +139,7 @@ final class InterfaceTypeMapper implements TypeMapper
 
             // Otherwise, use source directly (scalar flattening)
             $nodes[] = Node::if(
-                condition: Node::negate($keyedCondition),
+                condition: Node::negate($keyedCondition->wrap()),
                 body: Node::variable('inferArg')->assign(
                     $argMapper->formatValueNode(
                         Node::variable('source'),
@@ -151,9 +161,19 @@ final class InterfaceTypeMapper implements TypeMapper
 
             // Call the infer function with the single mapped argument
             $callNode = Node::this()->access('constructorCallbacks')->key(Node::value($callbackKey));
-            $nodes[] = Node::variable('className')->assign(
-                $callNode->call([Node::variable('inferArg')]),
-            )->asExpression();
+            $nodes[] = Node::try(
+                Node::variable('className')->assign(
+                    $callNode->call([Node::variable('inferArg')]),
+                )->asExpression(),
+            )->catches(
+                \Exception::class,
+                Node::variable('context')->callMethod('addMessage', [
+                    Node::property('exceptionFilter')->wrap()->call([Node::variable('exception')]),
+                    Node::value($this->type->toString()),
+                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
+                ])->asExpression(),
+                Node::return(Node::value(null)),
+            );
         } else {
             // Multi-arg infer: extract each key from source, ignoring extra keys.
 
@@ -175,6 +195,7 @@ final class InterfaceTypeMapper implements TypeMapper
             );
 
             // Check source is iterable/array
+            $dumpedType = $typeMapperFactory->dumpType($this->type);
             $nodes[] = Node::if(
                 condition: Node::negate(Node::functionCall('is_array', [Node::variable('source')])),
                 body: [
@@ -182,6 +203,7 @@ final class InterfaceTypeMapper implements TypeMapper
                         new MessageNode(new SourceMustBeIterable('value')),
                         Node::value($this->type->toString()),
                         Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
+                        Node::value($dumpedType),
                     ])->asExpression(),
                     Node::return(Node::value(null)),
                 ],
@@ -230,9 +252,19 @@ final class InterfaceTypeMapper implements TypeMapper
                 $callArgs[] = Node::variable('inferArg_' . $arg->name());
             }
 
-            $nodes[] = Node::variable('className')->assign(
-                $callNode->call($callArgs),
-            )->asExpression();
+            $nodes[] = Node::try(
+                Node::variable('className')->assign(
+                    $callNode->call($callArgs),
+                )->asExpression(),
+            )->catches(
+                \Exception::class,
+                Node::variable('context')->callMethod('addMessage', [
+                    Node::property('exceptionFilter')->wrap()->call([Node::variable('exception')]),
+                    Node::value($this->type->toString()),
+                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
+                ])->asExpression(),
+                Node::return(Node::value(null)),
+            );
         }
 
         // Allow infer function argument names as superfluous keys in implementation mapping

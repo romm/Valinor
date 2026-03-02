@@ -6,6 +6,7 @@ namespace CuyZ\Valinor\Type\Types;
 
 use BackedEnum;
 use CuyZ\Valinor\Compiler\Native\ComplianceNode;
+use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Type\ClassType;
 use CuyZ\Valinor\Type\CombiningType;
 use CuyZ\Valinor\Type\Parser\Exception\Enum\EnumCaseNotFound;
@@ -16,11 +17,13 @@ use UnitEnum;
 
 use function array_keys;
 use function array_map;
+use function count;
 use function explode;
 use function implode;
 use function in_array;
 use function is_string;
 use function ltrim;
+use function reset;
 
 /** @internal */
 final class EnumType implements ClassType
@@ -111,7 +114,50 @@ final class EnumType implements ClassType
 
     public function compiledAccept(ComplianceNode $node): ComplianceNode
     {
-        return $node->instanceOf($this->enumName);
+        $instanceCheck = $node->instanceOf($this->enumName);
+
+        // Full enum (all cases): instanceof is sufficient
+        if ($this->pattern === '') {
+            return $instanceCheck;
+        }
+
+        // Specific case subset: also check case membership
+        $firstCase = reset($this->cases);
+
+        if ($firstCase instanceof BackedEnum) {
+            $backingValues = array_keys($this->cases);
+
+            if (count($backingValues) === 1) {
+                return $instanceCheck->and(
+                    $node->access('value')->equals(Node::value($backingValues[0])),
+                );
+            }
+
+            return $instanceCheck->and(
+                Node::functionCall('in_array', [
+                    $node->access('value'),
+                    Node::value($backingValues),
+                    Node::value(true),
+                ]),
+            );
+        }
+
+        // Pure enum: check by case name
+        $caseNames = array_values(array_map(fn (UnitEnum $case) => $case->name, $this->cases));
+
+        if (count($caseNames) === 1) {
+            return $instanceCheck->and(
+                $node->access('name')->equals(Node::value($caseNames[0])),
+            );
+        }
+
+        return $instanceCheck->and(
+            Node::functionCall('in_array', [
+                $node->access('name'),
+                Node::value($caseNames),
+                Node::value(true),
+            ]),
+        );
     }
 
     public function matches(Type $other): bool

@@ -90,6 +90,7 @@ final class Container
                             $this->get(ClassDefinitionRepository::class),
                             $this->get(ObjectBuilderFactory::class),
                             $this->get(InterfaceInferringContainer::class),
+                            $this->get(TypeDumper::class),
                             $this->get(FunctionDefinitionRepository::class),
                             $settings->convertersSortedByPriority(),
                             $settings->keyConverters,

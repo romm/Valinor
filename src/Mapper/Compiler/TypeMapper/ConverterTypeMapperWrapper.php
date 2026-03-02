@@ -83,7 +83,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
                     Node::variable('converterResult')->assign($converterCall)->asExpression(),
                     // Post-validate: check result matches target type
                     Node::if(
-                        condition: Node::negate($this->targetType->compiledAccept(Node::variable('converterResult'))),
+                        condition: Node::negate($this->targetType->compiledAccept(Node::variable('converterResult'))->wrap()),
                         body: [
                             Node::variable('context')->callMethod('addMessage', [
                                 new MessageNode(InvalidNodeValue::from($this->targetType)),
@@ -134,7 +134,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
                     Node::variable('converterResult')->assign($converterCall)->asExpression(),
                     // Post-validate
                     Node::if(
-                        condition: Node::negate($this->targetType->compiledAccept(Node::variable('converterResult'))),
+                        condition: Node::negate($this->targetType->compiledAccept(Node::variable('converterResult'))->wrap()),
                         body: [
                             Node::variable('context')->callMethod('addMessage', [
                                 new MessageNode(InvalidNodeValue::from($this->targetType)),

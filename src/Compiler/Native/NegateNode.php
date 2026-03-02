@@ -14,6 +14,6 @@ final class NegateNode extends Node
 
     public function compile(Compiler $compiler): Compiler
     {
-        return $compiler->write('! (')->compile($this->node)->write(')');
+        return $compiler->write('! ')->compile($this->node);
     }
 }
