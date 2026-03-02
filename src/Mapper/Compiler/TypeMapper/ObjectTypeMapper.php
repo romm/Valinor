@@ -152,53 +152,28 @@ final class ObjectTypeMapper implements TypeMapper
         array &$nodes,
         string $dumpedType,
     ): AnonymousClassNode {
-        // Build shaped array mapper for argument validation
-        $shapedArrayType = ($argCount === 1)
-            ? new ShapedArrayType([
-                $arguments->at(0)->name() => new ShapedArrayElement(
-                    new StringValueType($arguments->at(0)->name()),
-                    $arguments->at(0)->type(),
-                    ! $arguments->at(0)->isRequired(),
-                    $arguments->at(0)->attributes(),
-                ),
-            ])
-            : $arguments->toShapedArray();
-
-        $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, applyKeyConverters: false);
-        $class = $shapedMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
-
-        // For single-arg builders, also prepare the flat mapper
+        // For single-arg builders, prepare both shaped and flat mappers
         $hasFlatPath = ($argCount === 1);
         $flatMapper = null;
         $argName = null;
         $argType = null;
         $flattenedType = null;
+        $shapedMapper = null;
 
         if ($hasFlatPath) {
-            $argument = $arguments->at(0);
-            $argName = $argument->name();
-            $argType = $argument->type();
-
-            $flattenedType = $argType;
-            if ($argType instanceof UnionType) {
-                $subTypes = $argType->types();
-                $filtered = array_filter(
-                    $subTypes,
-                    fn (Type $subType) => ! $subType instanceof ObjectType || $subType->className() !== $this->class->type->className(),
-                );
-                if ($filtered !== $subTypes) {
-                    $flattenedType = UnionType::from(...$filtered);
-                }
-            }
-
-            $flatMapper = $typeMapperFactory->for($flattenedType);
-
-            $argAttrConverters = $typeMapperFactory->attributeConvertersFor($argument->attributes(), $flattenedType);
-            if ($argAttrConverters !== []) {
-                $flatMapper = new ConverterTypeMapperWrapper($flattenedType, $flatMapper, $argAttrConverters);
-            }
-
+            $mappers = $this->prepareSingleArgMappers($arguments->at(0), $settings, $typeMapperFactory);
+            $shapedMapper = $mappers['shapedMapper'];
+            $flatMapper = $mappers['flatMapper'];
+            $flattenedType = $mappers['flattenedType'];
+            $argName = $arguments->at(0)->name();
+            $argType = $arguments->at(0)->type();
+            $class = $shapedMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
             $class = $flatMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+        } else {
+            // Build shaped array mapper for multi-arg validation
+            $shapedArrayType = $arguments->toShapedArray();
+            $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, applyKeyConverters: false);
+            $class = $shapedMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
         }
 
         // Build default values + construction as a single try-catch
@@ -317,43 +292,13 @@ final class ObjectTypeMapper implements TypeMapper
         $argName = $argument->name();
         $argType = $argument->type();
 
-        // If the target type is a union type, filter out self-referencing subtypes
-        // to prevent circular dependency
-        $flattenedType = $argType;
-        if ($argType instanceof UnionType) {
-            $subTypes = $argType->types();
-            $filtered = array_filter(
-                $subTypes,
-                fn (Type $subType) => ! $subType instanceof ObjectType || $subType->className() !== $this->class->type->className(),
-            );
+        // Prepare both shaped and flat mappers for single-arg builder
+        $mappers = $this->prepareSingleArgMappers($argument, $settings, $typeMapperFactory);
+        $shapedMapper = $mappers['shapedMapper'];
+        $flatMapper = $mappers['flatMapper'];
+        $flattenedType = $mappers['flattenedType'];
 
-            if ($filtered !== $subTypes) {
-                $flattenedType = UnionType::from(...$filtered);
-            }
-        }
-
-        // Create shaped array mapper for keyed path (with flattened type)
-        $shapedArrayType = new ShapedArrayType([
-            $argName => new ShapedArrayElement(
-                new StringValueType($argName),
-                $flattenedType,
-                ! $argument->isRequired(),
-                $argument->attributes(),
-            ),
-        ]);
-        $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, applyKeyConverters: false);
         $class = $shapedMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
-
-        // Flat mapper for direct source mapping
-        $flatMapper = $typeMapperFactory->for($flattenedType);
-
-        // Wrap flat mapper with attribute converters from the argument
-        $argAttrConverters = $typeMapperFactory->attributeConvertersFor($argument->attributes(), $flattenedType);
-
-        if ($argAttrConverters !== []) {
-            $flatMapper = new ConverterTypeMapperWrapper($flattenedType, $flatMapper, $argAttrConverters);
-        }
-
         $class = $flatMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
 
         // Default value + build nodes (reused by shaped and flat paths)
@@ -480,6 +425,62 @@ final class ObjectTypeMapper implements TypeMapper
 
         $tryBody = array_merge($defaultNodes, $builder->compile(Node::variable('values')));
         $nodes[] = $this->buildConstructionTryNode($tryBody, $dumpedType);
+    }
+
+    /**
+     * Prepares mappers for single-argument builders by computing the flattened type,
+     * creating a shaped array mapper, and a flat mapper with attribute converters.
+     *
+     * @return array{shapedMapper: ShapedArrayTypeMapper, flatMapper: TypeMapper, flattenedType: Type}
+     */
+    private function prepareSingleArgMappers(
+        \CuyZ\Valinor\Mapper\Object\Argument $argument,
+        Settings $settings,
+        TypeMapperFactory $typeMapperFactory,
+    ): array {
+        $argName = $argument->name();
+        $argType = $argument->type();
+
+        // If the target type is a union type, filter out self-referencing subtypes
+        // to prevent circular dependency
+        $flattenedType = $argType;
+        if ($argType instanceof UnionType) {
+            $subTypes = $argType->types();
+            $filtered = array_filter(
+                $subTypes,
+                fn (Type $subType) => ! $subType instanceof ObjectType || $subType->className() !== $this->class->type->className(),
+            );
+
+            if ($filtered !== $subTypes) {
+                $flattenedType = UnionType::from(...$filtered);
+            }
+        }
+
+        // Create shaped array mapper for keyed path (with flattened type)
+        $shapedArrayType = new ShapedArrayType([
+            $argName => new ShapedArrayElement(
+                new StringValueType($argName),
+                $flattenedType,
+                ! $argument->isRequired(),
+                $argument->attributes(),
+            ),
+        ]);
+        $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, applyKeyConverters: false);
+
+        // Flat mapper for direct source mapping
+        $flatMapper = $typeMapperFactory->for($flattenedType);
+
+        // Wrap flat mapper with attribute converters from the argument
+        $argAttrConverters = $typeMapperFactory->attributeConvertersFor($argument->attributes(), $flattenedType);
+        if ($argAttrConverters !== []) {
+            $flatMapper = new ConverterTypeMapperWrapper($flattenedType, $flatMapper, $argAttrConverters);
+        }
+
+        return [
+            'shapedMapper' => $shapedMapper,
+            'flatMapper' => $flatMapper,
+            'flattenedType' => $flattenedType,
+        ];
     }
 
     /**

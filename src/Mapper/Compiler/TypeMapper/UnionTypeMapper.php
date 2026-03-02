@@ -11,6 +11,7 @@ use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\InterfacePassthroughTypeMapper;
+use CuyZ\Valinor\Mapper\Compiler\UnionResolver;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotResolveObjectType;
 use CuyZ\Valinor\Type\ClassType;
 use CuyZ\Valinor\Type\FixedType;
@@ -93,17 +94,7 @@ final class UnionTypeMapper implements TypeMapper
                 $subMapper = $typeMapperFactory->for($subType);
                 $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
             } catch (CannotResolveObjectType) {
-                $nodes[] = Node::return(Node::value(null));
-
-                return $class->withMethods(
-                    Node::method($methodName)
-                        ->witParameters(
-                            Node::parameterDeclaration('source', 'mixed'),
-                            Node::parameterDeclaration('context', MappingContext::class),
-                        )
-                        ->withReturnType('mixed')
-                        ->withBody(...$nodes),
-                );
+                return $this->buildUnresolvableMethod($class, $methodName, $nodes);
             }
 
             $nodes[] = Node::return(
@@ -120,17 +111,7 @@ final class UnionTypeMapper implements TypeMapper
                 $subMapper = $typeMapperFactory->for($subType);
                 $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
             } catch (CannotResolveObjectType) {
-                $nodes[] = Node::return(Node::value(null));
-
-                return $class->withMethods(
-                    Node::method($methodName)
-                        ->witParameters(
-                            Node::parameterDeclaration('source', 'mixed'),
-                            Node::parameterDeclaration('context', MappingContext::class),
-                        )
-                        ->withReturnType('mixed')
-                        ->withBody(...$nodes),
-                );
+                return $this->buildUnresolvableMethod($class, $methodName, $nodes);
             }
 
             // Try mapping in isolation
@@ -229,8 +210,13 @@ final class UnionTypeMapper implements TypeMapper
             }
 
             // Resolve using the union resolution logic
+            $nodes[] = Node::variable('resolver')->assign(
+                Node::newClass(UnionResolver::class),
+            )->asExpression();
+
             $nodes[] = Node::return(
-                Node::variable('context')->callMethod('resolveUnion', [
+                Node::variable('resolver')->callMethod('resolve', [
+                    Node::variable('context'),
                     Node::variable('candidates'),
                     Node::variable('source'),
                     Node::value($this->type->toString()),
@@ -250,6 +236,24 @@ final class UnionTypeMapper implements TypeMapper
         );
     }
 
+
+    private function buildUnresolvableMethod(
+        AnonymousClassNode $class,
+        string $methodName,
+        array $nodes,
+    ): AnonymousClassNode {
+        $nodes[] = Node::return(Node::value(null));
+
+        return $class->withMethods(
+            Node::method($methodName)
+                ->witParameters(
+                    Node::parameterDeclaration('source', 'mixed'),
+                    Node::parameterDeclaration('context', MappingContext::class),
+                )
+                ->withReturnType('mixed')
+                ->withBody(...$nodes),
+        );
+    }
     private function typeCategory(Type $type): string
     {
         if ($type instanceof InterfaceType || $type instanceof ClassType || $type instanceof ShapedArrayType) {

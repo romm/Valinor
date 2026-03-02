@@ -71,87 +71,9 @@ final class ConverterTypeMapperWrapper implements TypeMapper
             );
 
             if ($paramCount === 1) {
-                // Single-param converter: terminal, returns result directly
-                $converterCall = Node::this()->access('constructorCallbacks')
-                    ->key(Node::value($callbackKey))
-                    ->call([Node::variable('source')]);
-
-                $tryBody = [
-                    Node::variable('converterResult')->assign($converterCall)->asExpression(),
-                    // Post-validate: check result matches target type
-                    Node::if(
-                        condition: Node::negate($this->targetType->compiledAccept(Node::variable('converterResult'))->wrap()),
-                        body: [
-                            Node::variable('context')->callMethod('addMessage', [
-                                new MessageNode(InvalidNodeValue::from($this->targetType)),
-                                Node::value($this->targetType->toString()),
-                                Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('converterResult')]),
-                            ])->asExpression(),
-                            Node::return(Node::value(null)),
-                        ],
-                    ),
-                    Node::return(Node::variable('converterResult')),
-                ];
-
-                $catchBody = $this->catchBody();
-
-                $nodes[] = Node::if(
-                    condition: $condition,
-                    body: Node::try(...$tryBody)
-                        ->catches(Throwable::class, ...$catchBody)
-                        ->asExpression(),
-                );
+                $nodes[] = $this->compileSingleParamConverter($converterInfo, $condition);
             } else {
-                // Two-param converter: chain with $next closure
-                $nextClosure = Node::closure(
-                    Node::variable('newValue')->assign(
-                        Node::ternary(
-                            Node::functionCall('func_num_args', [])->isGreaterThan(Node::value(0)),
-                            Node::functionCall('func_get_arg', [Node::value(0)]),
-                            Node::variable('source'),
-                        ),
-                    )->asExpression(),
-                    Node::return(
-                        Node::this()->callMethod($methodName, [
-                            Node::variable('newValue'),
-                            Node::variable('context'),
-                            Node::value($index + 1),
-                        ]),
-                    ),
-                )->uses('source', 'context');
-
-                $converterCall = Node::this()->access('constructorCallbacks')
-                    ->key(Node::value($callbackKey))
-                    ->call([
-                        Node::variable('source'),
-                        $nextClosure,
-                    ]);
-
-                $tryBody = [
-                    Node::variable('converterResult')->assign($converterCall)->asExpression(),
-                    // Post-validate
-                    Node::if(
-                        condition: Node::negate($this->targetType->compiledAccept(Node::variable('converterResult'))->wrap()),
-                        body: [
-                            Node::variable('context')->callMethod('addMessage', [
-                                new MessageNode(InvalidNodeValue::from($this->targetType)),
-                                Node::value($this->targetType->toString()),
-                                Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('converterResult')]),
-                            ])->asExpression(),
-                            Node::return(Node::value(null)),
-                        ],
-                    ),
-                    Node::return(Node::variable('converterResult')),
-                ];
-
-                $catchBody = $this->catchBody();
-
-                $nodes[] = Node::if(
-                    condition: $condition,
-                    body: Node::try(...$tryBody)
-                        ->catches(Throwable::class, ...$catchBody)
-                        ->asExpression(),
-                );
+                $nodes[] = $this->compileTwoParamConverter($converterInfo, $condition, $methodName, $index);
             }
         }
 
@@ -172,6 +94,119 @@ final class ConverterTypeMapperWrapper implements TypeMapper
                 )
                 ->withReturnType('mixed')
                 ->withBody(...$nodes),
+        );
+    }
+
+    /**
+     * Compile a single-parameter converter call.
+     *
+     * Single-param converters are terminal: they directly return the result
+     * after post-validation against the target type.
+     *
+     * @param array{key: string, paramType: Type, paramCount: int} $converterInfo
+     */
+    private function compileSingleParamConverter(array $converterInfo, Node $condition): Node
+    {
+        $callbackKey = $converterInfo['key'];
+
+        // Single-param converter: terminal, returns result directly
+        $converterCall = Node::this()->access('constructorCallbacks')
+            ->key(Node::value($callbackKey))
+            ->call([Node::variable('source')]);
+
+        $tryBody = [
+            Node::variable('converterResult')->assign($converterCall)->asExpression(),
+            // Post-validate: check result matches target type
+            Node::if(
+                condition: Node::negate($this->targetType->compiledAccept(Node::variable('converterResult'))->wrap()),
+                body: [
+                    Node::variable('context')->callMethod('addMessage', [
+                        new MessageNode(InvalidNodeValue::from($this->targetType)),
+                        Node::value($this->targetType->toString()),
+                        Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('converterResult')]),
+                    ])->asExpression(),
+                    Node::return(Node::value(null)),
+                ],
+            ),
+            Node::return(Node::variable('converterResult')),
+        ];
+
+        $catchBody = $this->catchBody();
+
+        return Node::if(
+            condition: $condition,
+            body: Node::try(...$tryBody)
+                ->catches(Throwable::class, ...$catchBody)
+                ->asExpression(),
+        );
+    }
+
+    /**
+     * Compile a two-parameter converter call.
+     *
+     * Two-param converters can chain: they receive a $next closure that can
+     * optionally transform the value before passing it to the next converter
+     * or the delegate mapper.
+     *
+     * @param array{key: string, paramType: Type, paramCount: int} $converterInfo
+     */
+    private function compileTwoParamConverter(
+        array $converterInfo,
+        Node $condition,
+        string $methodName,
+        int $index,
+    ): Node {
+        $callbackKey = $converterInfo['key'];
+
+        // Two-param converter: chain with $next closure
+        $nextClosure = Node::closure(
+            Node::variable('newValue')->assign(
+                Node::ternary(
+                    Node::functionCall('func_num_args', [])->isGreaterThan(Node::value(0)),
+                    Node::functionCall('func_get_arg', [Node::value(0)]),
+                    Node::variable('source'),
+                ),
+            )->asExpression(),
+            Node::return(
+                Node::this()->callMethod($methodName, [
+                    Node::variable('newValue'),
+                    Node::variable('context'),
+                    Node::value($index + 1),
+                ]),
+            ),
+        )->uses('source', 'context');
+
+        $converterCall = Node::this()->access('constructorCallbacks')
+            ->key(Node::value($callbackKey))
+            ->call([
+                Node::variable('source'),
+                $nextClosure,
+            ]);
+
+        $tryBody = [
+            Node::variable('converterResult')->assign($converterCall)->asExpression(),
+            // Post-validate
+            Node::if(
+                condition: Node::negate($this->targetType->compiledAccept(Node::variable('converterResult'))->wrap()),
+                body: [
+                    Node::variable('context')->callMethod('addMessage', [
+                        new MessageNode(InvalidNodeValue::from($this->targetType)),
+                        Node::value($this->targetType->toString()),
+                        Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('converterResult')]),
+                    ])->asExpression(),
+                    Node::return(Node::value(null)),
+                ],
+            ),
+            Node::return(Node::variable('converterResult')),
+        ];
+
+        $catchBody = $this->catchBody();
+
+        return Node::if(
+            condition: $condition,
+            body: Node::try(...$tryBody)
+                ->catches(Throwable::class, ...$catchBody)
+                ->asExpression(),
         );
     }
 

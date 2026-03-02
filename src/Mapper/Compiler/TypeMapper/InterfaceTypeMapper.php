@@ -78,8 +78,70 @@ final class InterfaceTypeMapper implements TypeMapper
             $implMappers[$className] = $implMapper;
         }
 
+        // Compile infer argument mapping and invocation
         $argCount = count($this->inferArguments);
+        $this->compileInferArgMapping($argCount, $callbackKey, $class, $settings, $typeMapperFactory, $nodes);
 
+        // Allow infer function argument names as superfluous keys in implementation mapping
+        if ($argCount > 0) {
+            $inferArgNames = [];
+            foreach ($this->inferArguments as $arg) {
+                $inferArgNames[] = Node::value($arg->name());
+            }
+            $nodes[] = Node::variable('context')->callMethod('allowSuperfluousKeys', $inferArgNames)->asExpression();
+        }
+
+        // Build match expression to dispatch to the correct implementation
+        $matchNode = Node::match(Node::variable('className'));
+        foreach ($implMappers as $className => $implMapper) {
+            $matchNode = $matchNode->withCase(
+                Node::value($className),
+                $implMapper->formatValueNode(
+                    Node::variable('source'),
+                    Node::variable('context'),
+                ),
+            );
+        }
+        // Default case: throw ObjectImplementationNotRegistered with the registered implementations
+        $implsKey = self::implementationsKey($this->type->className());
+        $typeMapperFactory->registerConstructorCallback($implsKey, $this->implementations);
+
+        $matchNode = $matchNode->withDefaultCase(
+            Node::throw(
+                Node::newClass(
+                    ObjectImplementationNotRegistered::class,
+                    Node::variable('className'),
+                    Node::value($this->type->className()),
+                    Node::this()->access('constructorCallbacks')->key(Node::value($implsKey)),
+                ),
+            ),
+        );
+
+        $nodes[] = Node::return($matchNode);
+
+        return $class->withMethods(
+            Node::method($methodName)
+                ->witParameters(
+                    Node::parameterDeclaration('source', 'mixed'),
+                    Node::parameterDeclaration('context', MappingContext::class),
+                )
+                ->withReturnType('mixed')
+                ->withBody(...$nodes),
+        );
+    }
+
+    /**
+     * Compile infer argument mapping and invocation for 0, 1, or multi-arg cases.
+     * @param non-empty-list<Node> $nodes Reference to nodes array to append to
+     */
+    private function compileInferArgMapping(
+        int $argCount,
+        string $callbackKey,
+        AnonymousClassNode &$class,
+        Settings $settings,
+        TypeMapperFactory $typeMapperFactory,
+        array &$nodes,
+    ): void {
         if ($argCount === 0) {
             // No arguments: call infer function directly with no args
             $nodes[] = Node::try(
@@ -264,53 +326,6 @@ final class InterfaceTypeMapper implements TypeMapper
                 Node::return(Node::value(null)),
             );
         }
-
-        // Allow infer function argument names as superfluous keys in implementation mapping
-        if ($argCount > 0) {
-            $inferArgNames = [];
-            foreach ($this->inferArguments as $arg) {
-                $inferArgNames[] = Node::value($arg->name());
-            }
-            $nodes[] = Node::variable('context')->callMethod('allowSuperfluousKeys', $inferArgNames)->asExpression();
-        }
-
-        // Build match expression to dispatch to the correct implementation
-        $matchNode = Node::match(Node::variable('className'));
-        foreach ($implMappers as $className => $implMapper) {
-            $matchNode = $matchNode->withCase(
-                Node::value($className),
-                $implMapper->formatValueNode(
-                    Node::variable('source'),
-                    Node::variable('context'),
-                ),
-            );
-        }
-        // Default case: throw ObjectImplementationNotRegistered with the registered implementations
-        $implsKey = self::implementationsKey($this->type->className());
-        $typeMapperFactory->registerConstructorCallback($implsKey, $this->implementations);
-
-        $matchNode = $matchNode->withDefaultCase(
-            Node::throw(
-                Node::newClass(
-                    ObjectImplementationNotRegistered::class,
-                    Node::variable('className'),
-                    Node::value($this->type->className()),
-                    Node::this()->access('constructorCallbacks')->key(Node::value($implsKey)),
-                ),
-            ),
-        );
-
-        $nodes[] = Node::return($matchNode);
-
-        return $class->withMethods(
-            Node::method($methodName)
-                ->witParameters(
-                    Node::parameterDeclaration('source', 'mixed'),
-                    Node::parameterDeclaration('context', MappingContext::class),
-                )
-                ->withReturnType('mixed')
-                ->withBody(...$nodes),
-        );
     }
 
     /**
