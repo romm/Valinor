@@ -111,51 +111,41 @@ final class ShapedArrayTypeMapper implements TypeMapper
                     )->asStatement(),
                 );
             } else {
-                // Required element: map value if exists, otherwise add missing error
+                // Required element: map value if exists, otherwise handle missing
+                $ifBody = variable('result')->key(value($key))->assign(
+                    $subMapper->formatValueNode(
+                        variable('source')->key(value($key)),
+                        variable('context')->callMethod('sub', [value($keyStr)]),
+                    ),
+                )->asStatement();
+
+                if ($settings->allowUndefinedValues) {
+                    // When undefined values are allowed, pass null through sub-mapper
+                    // (it handles null→default conversion, e.g. null→[] for lists)
+                    $elseBody = variable('result')->key(value($key))->assign(
+                        $subMapper->formatValueNode(
+                            value(null),
+                            variable('context')->callMethod('sub', [value($keyStr)]),
+                        ),
+                    )->asStatement();
+                } else {
+                    // When undefined values are NOT allowed, add a proper missing value error
+                    $dumpedElementType = $typeMapperFactory->dumpType($element->type());
+                    $elseBody = variable('context')->callMethod('sub', [value($keyStr)])->callMethod('addMessage', [
+                        new MessageNode(MissingNodeValue::from($element->type())),
+                        value($element->type()->toString()),
+                        value('*missing*'),
+                        value($dumpedElementType),
+                    ])->asStatement();
+                }
+
                 $nodes[] = if_(
                     condition: call('array_key_exists', [
                         value($key),
                         variable('source'),
                     ]),
-                    body: variable('result')->key(value($key))->assign(
-                        $subMapper->formatValueNode(
-                            variable('source')->key(value($key)),
-                            variable('context')->callMethod('sub', [value($keyStr)]),
-                        ),
-                    )->asStatement(),
-                );
-
-                if ($settings->allowUndefinedValues) {
-                    // When undefined values are allowed, pass null through sub-mapper
-                    // (it handles null→default conversion, e.g. null→[] for lists)
-                    $nodes[] = if_(
-                        condition: negate(call('array_key_exists', [
-                            value($key),
-                            variable('source'),
-                        ])),
-                        body: variable('result')->key(value($key))->assign(
-                            $subMapper->formatValueNode(
-                                value(null),
-                                variable('context')->callMethod('sub', [value($keyStr)]),
-                            ),
-                        )->asStatement(),
-                    );
-                } else {
-                    // When undefined values are NOT allowed, add a proper missing value error
-                    $dumpedElementType = $typeMapperFactory->dumpType($element->type());
-                    $nodes[] = if_(
-                        condition: negate(call('array_key_exists', [
-                            value($key),
-                            variable('source'),
-                        ])),
-                        body: variable('context')->callMethod('sub', [value($keyStr)])->callMethod('addMessage', [
-                            new MessageNode(MissingNodeValue::from($element->type())),
-                            value($element->type()->toString()),
-                            value('*missing*'),
-                            value($dumpedElementType),
-                        ])->asStatement(),
-                    );
-                }
+                    body: $ifBody,
+                )->else($elseBody);
             }
         }
 
@@ -186,7 +176,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
                 $nodes[] = variable('remaining')->assign(
                     call('array_diff_key', [
                         variable('source'),
-                        call('array_flip', [value($definedKeys)]),
+                        value(array_flip($definedKeys)),
                     ]),
                 )->asStatement();
 
@@ -208,7 +198,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
                 $nodes[] = variable('remaining')->assign(
                     call('array_diff_key', [
                         variable('source'),
-                        call('array_flip', [value($definedKeys)]),
+                        value(array_flip($definedKeys)),
                     ]),
                 )->asStatement();
 
@@ -236,7 +226,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
             $nodes[] = variable('extraKeys')->assign(
                 call('array_diff_key', [
                     variable('source'),
-                    call('array_flip', [value($definedKeys)]),
+                    value(array_flip($definedKeys)),
                 ]),
             )->asStatement();
 
