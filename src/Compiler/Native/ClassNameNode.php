@@ -7,6 +7,9 @@ namespace CuyZ\Valinor\Compiler\Native;
 use CuyZ\Valinor\Compiler\Compiler;
 use CuyZ\Valinor\Compiler\Node;
 
+use function addcslashes;
+use function str_contains;
+
 /** @internal */
 final class ClassNameNode extends Node
 {
@@ -17,6 +20,12 @@ final class ClassNameNode extends Node
 
     public function compile(Compiler $compiler): Compiler
     {
-        return $compiler->write($this->className . '::class');
+        if (str_contains($this->className, '@anonymous')) {
+            $escapedName = addcslashes($this->className, "\0\"\\$");
+
+            return $compiler->write("(\$___cn = \"{$escapedName}\")");
+        }
+
+        return $compiler->write($this->className);
     }
 }

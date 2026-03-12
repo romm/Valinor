@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Type\Types;
 
 use BackedEnum;
-use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Type\ClassType;
 use CuyZ\Valinor\Type\CombiningType;
@@ -112,7 +111,7 @@ final class EnumType implements ClassType
         return in_array($value, $this->cases, true);
     }
 
-    public function compiledAccept(ComplianceNode $node): ComplianceNode
+    public function compiledAccept(Node $node): Node
     {
         $instanceCheck = $node->instanceOf($this->enumName);
 

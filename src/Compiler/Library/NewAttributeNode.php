@@ -12,6 +12,7 @@ use ReflectionMethod;
 use ReflectionProperty;
 
 use function array_map;
+use function CuyZ\Valinor\Compiler\{className, newClass, value};
 use function str_contains;
 
 /** @internal */
@@ -23,9 +24,9 @@ final class NewAttributeNode extends Node
     {
         if ($this->attribute->arguments !== null) {
             return $compiler->compile(
-                Node::newClass(
+                newClass(
                     $this->attribute->class->name,
-                    ...array_map(Node::value(...), $this->attribute->arguments),
+                    ...array_map(value(...), $this->attribute->arguments),
                 ),
             );
         }
@@ -34,32 +35,33 @@ final class NewAttributeNode extends Node
 
         // @phpstan-ignore match.unhandled (closure/closureParameter cannot be compiled statically)
         $reflectorNode = match ($this->attribute->reflectionParts[0]) {
-            'class' => Node::newClass(ReflectionClass::class, $classNameNode)->wrap(),
-            'property' => Node::newClass(ReflectionProperty::class, $classNameNode, Node::value($this->attribute->reflectionParts[2]))->wrap(),
-            'method' => Node::newClass(ReflectionMethod::class, $classNameNode, Node::value($this->attribute->reflectionParts[2]))->wrap(),
-            'methodParameter' => Node::newClass(ReflectionMethod::class, $classNameNode, Node::value($this->attribute->reflectionParts[2]))
-                ->wrap()->callMethod('getParameters')->key(Node::value($this->attribute->reflectionParts[3])),
+            'class' => newClass(ReflectionClass::class, $classNameNode)->wrap(),
+            'property' => newClass(ReflectionProperty::class, $classNameNode, value($this->attribute->reflectionParts[2]))->wrap(),
+            'method' => newClass(ReflectionMethod::class, $classNameNode, value($this->attribute->reflectionParts[2]))->wrap(),
+            'methodParameter' => newClass(ReflectionMethod::class, $classNameNode, value($this->attribute->reflectionParts[2]))
+                ->wrap()->callMethod('getParameters')->key(value($this->attribute->reflectionParts[3])),
         };
 
         return $compiler->compile(
             $reflectorNode
                 ->callMethod('getAttributes')
-                ->key(Node::value($this->attribute->attributeIndex))
+                ->key(value($this->attribute->attributeIndex))
                 ->callMethod('newInstance'),
         );
     }
 
     /**
-     * For named classes, use Node::className() which generates \ClassName::class.
-     * For anonymous classes (containing '@'), use Node::value() which generates
+     * For named classes, use className() which generates \ClassName, then
+     * asClassConstant() to generate \ClassName::class.
+     * For anonymous classes (containing '@'), use value() which generates
      * a string literal that ReflectionClass/ReflectionProperty/etc. accept.
      */
     private function classNameNode(string $className): Node
     {
         if (str_contains($className, '@')) {
-            return Node::value($className);
+            return value($className);
         }
 
-        return Node::className($className);
+        return className($className)->asClassConstant();
     }
 }
