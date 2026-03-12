@@ -10,6 +10,7 @@ use CuyZ\Valinor\Mapper\Tree\Message\Message;
 use Exception;
 
 use function array_merge;
+use function CuyZ\Valinor\Compiler\{call, forEach_, if_, negate, return_, this, try_, value, variable};
 
 /**
  * Utility for generating key converter application nodes.
@@ -38,60 +39,60 @@ final class KeyConverterNodes
         $keyConverterIndices = $factory->keyConverterIndices();
 
         // Build converter chain: apply each converter to the key
-        $keyVarNode = Node::variable('ck');
+        $keyVarNode = variable('ck');
         $converterNodes = [];
 
         foreach ($keyConverterIndices as $kcIndex) {
             $converterNodes[] = $keyVarNode->assign(
-                Node::this()->access('keyConverters')->key(Node::value($kcIndex))->call([$keyVarNode]),
-            )->asExpression();
+                this()->access('keyConverters')->key(value($kcIndex))->call([$keyVarNode]),
+            )->asStatement();
         }
 
         $tryBody = array_merge($converterNodes, [
-            Node::variable('convertedSource')->key($keyVarNode)->assign(
-                Node::variable('origVal'),
-            )->asExpression(),
-            Node::variable('nameMap')->key($keyVarNode)->assign(
-                Node::functionCall('strval', [Node::variable('origKey')]),
-            )->asExpression(),
+            variable('convertedSource')->key($keyVarNode)->assign(
+                variable('origVal'),
+            )->asStatement(),
+            variable('nameMap')->key($keyVarNode)->assign(
+                call('strval', [variable('origKey')]),
+            )->asStatement(),
         ]);
 
         $forEachBody = [
             $keyVarNode->assign(
-                Node::functionCall('strval', [Node::variable('origKey')]),
-            )->asExpression(),
-            Node::try(...$tryBody)->catches(
+                call('strval', [variable('origKey')]),
+            )->asStatement(),
+            try_(...$tryBody)->catches(
                 Exception::class,
                 // If exception is already a Message, use it directly; otherwise filter
-                Node::if(
-                    condition: Node::negate(Node::variable('exception')->instanceOf(Message::class)),
-                    body: Node::variable('exception')->assign(
-                        Node::property('exceptionFilter')->wrap()->call([Node::variable('exception')]),
-                    )->asExpression(),
+                if_(
+                    condition: negate(variable('exception')->instanceOf(Message::class)),
+                    body: variable('exception')->assign(
+                        this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
+                    )->asStatement(),
                 ),
-                Node::variable('context')->callMethod('sub', [
-                    Node::functionCall('strval', [Node::variable('origKey')]),
+                variable('context')->callMethod('sub', [
+                    call('strval', [variable('origKey')]),
                 ])->callMethod('addMessage', [
-                    Node::variable('exception'),
-                    Node::value('?'),
-                    Node::functionCall('strval', [Node::variable('origKey')]),
-                ])->asExpression(),
+                    variable('exception'),
+                    value('?'),
+                    call('strval', [variable('origKey')]),
+                ])->asStatement(),
             ),
         ];
 
         $keyConverterBody = [
-            Node::variable('convertedSource')->assign(Node::value([]))->asExpression(),
-            Node::variable('nameMap')->assign(Node::value([]))->asExpression(),
-            Node::forEach(
-                Node::variable('source'),
+            variable('convertedSource')->assign(value([]))->asStatement(),
+            variable('nameMap')->assign(value([]))->asStatement(),
+            forEach_(
+                variable('source'),
                 'origKey',
                 'origVal',
                 $forEachBody,
             ),
-            Node::variable('source')->assign(Node::variable('convertedSource'))->asExpression(),
-            Node::variable('context')->callMethod('setNameMap', [
-                Node::variable('nameMap'),
-            ])->asExpression(),
+            variable('source')->assign(variable('convertedSource'))->asStatement(),
+            variable('context')->callMethod('setNameMap', [
+                variable('nameMap'),
+            ])->asStatement(),
         ];
 
         // Add early return if errors occurred
@@ -99,8 +100,8 @@ final class KeyConverterNodes
 
         if ($wrapInArrayCheck) {
             // Wrap in is_array check (ObjectTypeMapper use case)
-            $nodes[] = Node::if(
-                condition: Node::functionCall('is_array', [Node::variable('source')]),
+            $nodes[] = if_(
+                condition: call('is_array', [variable('source')]),
                 body: $keyConverterBody,
             );
         } else {
@@ -109,9 +110,9 @@ final class KeyConverterNodes
         }
 
         // Early return if key conversion caused errors
-        $nodes[] = Node::if(
-            condition: Node::variable('context')->callMethod('containsErrors'),
-            body: Node::return(Node::value(null)),
+        $nodes[] = if_(
+            condition: variable('context')->callMethod('containsErrors'),
+            body: return_(value(null)),
         );
 
         return $nodes;

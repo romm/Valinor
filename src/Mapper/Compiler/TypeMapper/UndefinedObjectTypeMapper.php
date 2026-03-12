@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
-use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
@@ -15,12 +14,14 @@ use CuyZ\Valinor\Mapper\Tree\Exception\CannotMapToPermissiveType;
 use CuyZ\Valinor\Mapper\Tree\Exception\InvalidNodeValue;
 use CuyZ\Valinor\Utility\ValueDumper;
 
+use function CuyZ\Valinor\Compiler\{call, className, if_, negate, param, return_, this, value, variable};
+
 /** @internal */
 final class UndefinedObjectTypeMapper implements TypeMapper
 {
-    public function formatValueNode(ComplianceNode $value, ComplianceNode $context): Node
+    public function formatValueNode(Node $value, Node $context): Node
     {
-        return Node::this()->callMethod(
+        return this()->callMethod(
             method: 'map_object',
             arguments: [$value, $context],
         );
@@ -36,27 +37,27 @@ final class UndefinedObjectTypeMapper implements TypeMapper
             return $class;
         }
 
-        return $class->withMethods(
-            Node::method('map_object')
-                ->witParameters(
-                    Node::parameterDeclaration('source', 'mixed'),
-                    Node::parameterDeclaration('context', MappingContext::class),
-                )
-                ->withReturnType('?object')
-                ->withBody(
-                    Node::if(
-                        condition: Node::negate(Node::functionCall('is_object', [Node::variable('source')])),
-                        body: [
-                            Node::variable('context')->callMethod('addMessage', [
-                                new MessageNode(new InvalidNodeValue()),
-                                Node::value('object'),
-                                Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                            ])->asExpression(),
-                            Node::return(Node::value(null)),
-                        ],
-                    ),
-                    Node::return(Node::variable('source')),
+        return $class->withMethod(
+            name: 'map_object',
+            parameters: [
+                param('source', 'mixed'),
+                param('context', MappingContext::class),
+            ],
+            returnType: '?object',
+            body: [
+                if_(
+                    condition: negate(call('is_object', [variable('source')])),
+                    body: [
+                        variable('context')->callMethod('addMessage', [
+                            new MessageNode(new InvalidNodeValue()),
+                            value('object'),
+                            className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
+                        ])->asStatement(),
+                        return_(value(null)),
+                    ],
                 ),
+                return_(variable('source')),
+            ],
         );
     }
 }

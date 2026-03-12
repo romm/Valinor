@@ -12,7 +12,7 @@ use CuyZ\Valinor\Type\FloatType;
 use CuyZ\Valinor\Type\Type;
 
 use function assert;
-use function CuyZ\Valinor\Compiler\value;
+use function CuyZ\Valinor\Compiler\{call, castTo, value};
 use function is_numeric;
 
 /** @internal */
@@ -60,15 +60,15 @@ final class FloatValueType implements FloatType, FixedType
             ->build();
     }
 
-    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    public function compiledCanCast(Node $node): Node
     {
-        return Node::functionCall('is_numeric', [$node])
-            ->and($node->castTo($this)->equals(Node::value($this->value)));
+        return call('is_numeric', [$node])
+            ->and(castTo($this, $node)->equals(value($this->value)));
     }
 
-    public function compiledCast(ComplianceNode $node): ComplianceNode
+    public function compiledCast(Node $node): Node
     {
-        return $node->castTo($this);
+        return castTo($this, $node);
     }
 
     public function value(): float

@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
-use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\FunctionDefinition;
+
+use function CuyZ\Valinor\Compiler\{call, className, if_, match_, negate, newClass, param, return_, this, throw_, try_, value, variable};
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
@@ -35,9 +36,9 @@ final class InterfaceTypeMapper implements TypeMapper
         private array $implementations,
     ) {}
 
-    public function formatValueNode(ComplianceNode $value, ComplianceNode $context): Node
+    public function formatValueNode(Node $value, Node $context): Node
     {
-        return Node::this()->callMethod(
+        return this()->callMethod(
             method: $this->methodName(),
             arguments: [
                 $value,
@@ -55,7 +56,7 @@ final class InterfaceTypeMapper implements TypeMapper
         }
 
         // Register placeholder to prevent infinite recursion
-        $class = $class->withMethods(Node::method($methodName));
+        $class = $class->withMethod($methodName);
 
         $nodes = [];
 
@@ -77,44 +78,44 @@ final class InterfaceTypeMapper implements TypeMapper
         if ($argCount > 0) {
             $inferArgNames = [];
             foreach ($this->inferArguments as $arg) {
-                $inferArgNames[] = Node::value($arg->name());
+                $inferArgNames[] = value($arg->name());
             }
-            $nodes[] = Node::variable('context')->callMethod('allowSuperfluousKeys', $inferArgNames)->asExpression();
+            $nodes[] = variable('context')->callMethod('allowSuperfluousKeys', $inferArgNames)->asStatement();
         }
 
         // Build match expression to dispatch to the correct implementation
-        $matchNode = Node::match(Node::variable('className'));
+        $matchNode = match_(variable('className'));
         foreach ($implMappers as $className => $implMapper) {
             $matchNode = $matchNode->withCase(
-                Node::value($className),
+                value($className),
                 $implMapper->formatValueNode(
-                    Node::variable('source'),
-                    Node::variable('context'),
+                    variable('source'),
+                    variable('context'),
                 ),
             );
         }
         // Default case: throw ObjectImplementationNotRegistered with the implementation list
         $matchNode = $matchNode->withDefaultCase(
-            Node::throw(
-                Node::newClass(
+            throw_(
+                newClass(
                     ObjectImplementationNotRegistered::class,
-                    Node::variable('className'),
-                    Node::value($this->type->className()),
-                    Node::value(array_keys($this->implementations)),
+                    variable('className'),
+                    value($this->type->className()),
+                    value(array_keys($this->implementations)),
                 ),
             ),
         );
 
-        $nodes[] = Node::return($matchNode);
+        $nodes[] = return_($matchNode);
 
-        return $class->withMethods(
-            Node::method($methodName)
-                ->witParameters(
-                    Node::parameterDeclaration('source', 'mixed'),
-                    Node::parameterDeclaration('context', MappingContext::class),
-                )
-                ->withReturnType('mixed')
-                ->withBody(...$nodes),
+        return $class->withMethod(
+            name: $methodName,
+            parameters: [
+                param('source', 'mixed'),
+                param('context', MappingContext::class),
+            ],
+            returnType: 'mixed',
+            body: $nodes,
         );
     }
 
@@ -131,22 +132,22 @@ final class InterfaceTypeMapper implements TypeMapper
         TypeMapperFactory $typeMapperFactory,
         array &$nodes,
     ): void {
-        $inferCallNode = Node::this()->access('inferredMapping')->key(Node::value($interfaceClassName));
+        $inferCallNode = this()->access('inferredMapping')->key(value($interfaceClassName));
 
         if ($argCount === 0) {
             // No arguments: call infer function directly with no args
-            $nodes[] = Node::try(
-                Node::variable('className')->assign(
+            $nodes[] = try_(
+                variable('className')->assign(
                     $inferCallNode->call(),
-                )->asExpression(),
+                )->asStatement(),
             )->catches(
                 \Exception::class,
-                Node::variable('context')->callMethod('addMessage', [
-                    Node::property('exceptionFilter')->wrap()->call([Node::variable('exception')]),
-                    Node::value($this->type->toString()),
-                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                ])->asExpression(),
-                Node::return(Node::value(null)),
+                variable('context')->callMethod('addMessage', [
+                    this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
+                    value($this->type->toString()),
+                    className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
+                ])->asStatement(),
+                return_(value(null)),
             );
         } elseif ($argCount === 1) {
             // Single-arg infer: handle scalar flattening like ObjectTypeMapper.
@@ -157,72 +158,72 @@ final class InterfaceTypeMapper implements TypeMapper
             $class = $argMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
 
             // Convert iterable to array if needed
-            $nodes[] = Node::if(
-                condition: Node::functionCall('is_iterable', [Node::variable('source')])
-                    ->and(Node::negate(Node::functionCall('is_array', [Node::variable('source')]))),
-                body: Node::variable('source')->assign(
-                    Node::functionCall('iterator_to_array', [Node::variable('source')]),
-                )->asExpression(),
+            $nodes[] = if_(
+                condition: call('is_iterable', [variable('source')])
+                    ->and(negate(call('is_array', [variable('source')]))),
+                body: variable('source')->assign(
+                    call('iterator_to_array', [variable('source')]),
+                )->asStatement(),
             );
 
             // Map infer arg in isolation
-            $nodes[] = Node::variable('inferContext')->assign(
-                Node::variable('context')->callMethod('isolate'),
-            )->asExpression();
+            $nodes[] = variable('inferContext')->assign(
+                variable('context')->callMethod('isolate'),
+            )->asStatement();
 
             // Condition: source is an array with the arg key
-            $keyedCondition = Node::functionCall('is_array', [Node::variable('source')])
-                ->and(Node::functionCall('array_key_exists', [
-                    Node::value($argName),
-                    Node::variable('source'),
+            $keyedCondition = call('is_array', [variable('source')])
+                ->and(call('array_key_exists', [
+                    value($argName),
+                    variable('source'),
                 ]));
 
             // If source is an array with the arg key, extract it
-            $nodes[] = Node::if(
+            $nodes[] = if_(
                 condition: $keyedCondition,
-                body: Node::variable('inferArg')->assign(
+                body: variable('inferArg')->assign(
                     $argMapper->formatValueNode(
-                        Node::variable('source')->key(Node::value($argName)),
-                        Node::variable('inferContext')->callMethod('sub', [Node::value($argName)]),
+                        variable('source')->key(value($argName)),
+                        variable('inferContext')->callMethod('sub', [value($argName)]),
                     ),
-                )->asExpression(),
+                )->asStatement(),
             );
 
             // Otherwise, use source directly (scalar flattening)
-            $nodes[] = Node::if(
-                condition: Node::negate($keyedCondition->wrap()),
-                body: Node::variable('inferArg')->assign(
+            $nodes[] = if_(
+                condition: negate($keyedCondition->wrap()),
+                body: variable('inferArg')->assign(
                     $argMapper->formatValueNode(
-                        Node::variable('source'),
-                        Node::variable('inferContext'),
+                        variable('source'),
+                        variable('inferContext'),
                     ),
-                )->asExpression(),
+                )->asStatement(),
             );
 
             // If argument mapping failed, propagate errors
-            $nodes[] = Node::if(
-                condition: Node::variable('inferContext')->callMethod('containsErrors'),
+            $nodes[] = if_(
+                condition: variable('inferContext')->callMethod('containsErrors'),
                 body: [
-                    Node::variable('context')->callMethod('mergeFrom', [
-                        Node::variable('inferContext'),
-                    ])->asExpression(),
-                    Node::return(Node::value(null)),
+                    variable('context')->callMethod('mergeFrom', [
+                        variable('inferContext'),
+                    ])->asStatement(),
+                    return_(value(null)),
                 ],
             );
 
             // Call the infer function with the single mapped argument
-            $nodes[] = Node::try(
-                Node::variable('className')->assign(
-                    $inferCallNode->call([Node::variable('inferArg')]),
-                )->asExpression(),
+            $nodes[] = try_(
+                variable('className')->assign(
+                    $inferCallNode->call([variable('inferArg')]),
+                )->asStatement(),
             )->catches(
                 \Exception::class,
-                Node::variable('context')->callMethod('addMessage', [
-                    Node::property('exceptionFilter')->wrap()->call([Node::variable('exception')]),
-                    Node::value($this->type->toString()),
-                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                ])->asExpression(),
-                Node::return(Node::value(null)),
+                variable('context')->callMethod('addMessage', [
+                    this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
+                    value($this->type->toString()),
+                    className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
+                ])->asStatement(),
+                return_(value(null)),
             );
         } else {
             // Multi-arg infer: extract each key from source, ignoring extra keys.
@@ -236,82 +237,82 @@ final class InterfaceTypeMapper implements TypeMapper
             }
 
             // Convert iterable to array if needed
-            $nodes[] = Node::if(
-                condition: Node::functionCall('is_iterable', [Node::variable('source')])
-                    ->and(Node::negate(Node::functionCall('is_array', [Node::variable('source')]))),
-                body: Node::variable('source')->assign(
-                    Node::functionCall('iterator_to_array', [Node::variable('source')]),
-                )->asExpression(),
+            $nodes[] = if_(
+                condition: call('is_iterable', [variable('source')])
+                    ->and(negate(call('is_array', [variable('source')]))),
+                body: variable('source')->assign(
+                    call('iterator_to_array', [variable('source')]),
+                )->asStatement(),
             );
 
             // Check source is iterable/array
             $dumpedType = $typeMapperFactory->dumpType($this->type);
-            $nodes[] = Node::if(
-                condition: Node::negate(Node::functionCall('is_array', [Node::variable('source')])),
+            $nodes[] = if_(
+                condition: negate(call('is_array', [variable('source')])),
                 body: [
-                    Node::variable('context')->callMethod('addMessage', [
+                    variable('context')->callMethod('addMessage', [
                         new MessageNode(new SourceMustBeIterable('value')),
-                        Node::value($this->type->toString()),
-                        Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                        Node::value($dumpedType),
-                    ])->asExpression(),
-                    Node::return(Node::value(null)),
+                        value($this->type->toString()),
+                        className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
+                        value($dumpedType),
+                    ])->asStatement(),
+                    return_(value(null)),
                 ],
             );
 
             // Map infer arguments in isolation
-            $nodes[] = Node::variable('inferContext')->assign(
-                Node::variable('context')->callMethod('isolate'),
-            )->asExpression();
+            $nodes[] = variable('inferContext')->assign(
+                variable('context')->callMethod('isolate'),
+            )->asStatement();
 
             // Extract and map each infer argument individually
             foreach ($this->inferArguments as $arg) {
                 $argName = $arg->name();
                 $argMapper = $argMappers[$argName];
 
-                $nodes[] = Node::if(
-                    condition: Node::functionCall('array_key_exists', [
-                        Node::value($argName),
-                        Node::variable('source'),
+                $nodes[] = if_(
+                    condition: call('array_key_exists', [
+                        value($argName),
+                        variable('source'),
                     ]),
-                    body: Node::variable('inferArg_' . $argName)->assign(
+                    body: variable('inferArg_' . $argName)->assign(
                         $argMapper->formatValueNode(
-                            Node::variable('source')->key(Node::value($argName)),
-                            Node::variable('inferContext')->callMethod('sub', [Node::value($argName)]),
+                            variable('source')->key(value($argName)),
+                            variable('inferContext')->callMethod('sub', [value($argName)]),
                         ),
-                    )->asExpression(),
+                    )->asStatement(),
                 );
             }
 
             // If argument mapping failed, propagate errors
-            $nodes[] = Node::if(
-                condition: Node::variable('inferContext')->callMethod('containsErrors'),
+            $nodes[] = if_(
+                condition: variable('inferContext')->callMethod('containsErrors'),
                 body: [
-                    Node::variable('context')->callMethod('mergeFrom', [
-                        Node::variable('inferContext'),
-                    ])->asExpression(),
-                    Node::return(Node::value(null)),
+                    variable('context')->callMethod('mergeFrom', [
+                        variable('inferContext'),
+                    ])->asStatement(),
+                    return_(value(null)),
                 ],
             );
 
             // Call the infer function with mapped arguments
             $callArgs = [];
             foreach ($this->inferArguments as $arg) {
-                $callArgs[] = Node::variable('inferArg_' . $arg->name());
+                $callArgs[] = variable('inferArg_' . $arg->name());
             }
 
-            $nodes[] = Node::try(
-                Node::variable('className')->assign(
+            $nodes[] = try_(
+                variable('className')->assign(
                     $inferCallNode->call($callArgs),
-                )->asExpression(),
+                )->asStatement(),
             )->catches(
                 \Exception::class,
-                Node::variable('context')->callMethod('addMessage', [
-                    Node::property('exceptionFilter')->wrap()->call([Node::variable('exception')]),
-                    Node::value($this->type->toString()),
-                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                ])->asExpression(),
-                Node::return(Node::value(null)),
+                variable('context')->callMethod('addMessage', [
+                    this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
+                    value($this->type->toString()),
+                    className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
+                ])->asStatement(),
+                return_(value(null)),
             );
         }
     }

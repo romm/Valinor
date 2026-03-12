@@ -16,7 +16,9 @@ use UnitEnum;
 
 use function array_keys;
 use function array_map;
+use function array_values;
 use function count;
+use function CuyZ\Valinor\Compiler\{call, value};
 use function explode;
 use function implode;
 use function in_array;
@@ -128,15 +130,15 @@ final class EnumType implements ClassType
 
             if (count($backingValues) === 1) {
                 return $instanceCheck->and(
-                    $node->access('value')->equals(Node::value($backingValues[0])),
+                    $node->access('value')->equals(value($backingValues[0])),
                 );
             }
 
             return $instanceCheck->and(
-                Node::functionCall('in_array', [
+                call('in_array', [
                     $node->access('value'),
-                    Node::value($backingValues),
-                    Node::value(true),
+                    value($backingValues),
+                    value(true),
                 ]),
             );
         }
@@ -146,15 +148,15 @@ final class EnumType implements ClassType
 
         if (count($caseNames) === 1) {
             return $instanceCheck->and(
-                $node->access('name')->equals(Node::value($caseNames[0])),
+                $node->access('name')->equals(value($caseNames[0])),
             );
         }
 
         return $instanceCheck->and(
-            Node::functionCall('in_array', [
+            call('in_array', [
                 $node->access('name'),
-                Node::value($caseNames),
-                Node::value(true),
+                value($caseNames),
+                value(true),
             ]),
         );
     }

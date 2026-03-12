@@ -12,6 +12,7 @@ use CuyZ\Valinor\Mapper\Tree\Message\HasParameters;
 use CuyZ\Valinor\Mapper\Tree\Message\Message;
 
 use function array_map;
+use function CuyZ\Valinor\Compiler\{array_, newClass, value};
 
 final class MessageNode extends Node
 {
@@ -25,16 +26,16 @@ final class MessageNode extends Node
 
         if ($this->message instanceof HasParameters) {
             foreach ($this->message->parameters() as $name => $parameter) {
-                $parameters[$name] = Node::value($parameter);
+                $parameters[$name] = value($parameter);
             }
         }
 
         return $compiler->compile(
-            Node::newClass(
+            newClass(
                 BasicErrorMessage::class,
-                Node::value($this->message->body()),
-                Node::value($this->message instanceof HasCode ? $this->message->code() : 'unknown'),
-                Node::array($parameters),
+                value($this->message->body()),
+                value($this->message instanceof HasCode ? $this->message->code() : 'unknown'),
+                array_($parameters),
             ),
         );
     }

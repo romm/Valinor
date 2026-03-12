@@ -22,7 +22,7 @@ use function array_map;
 use function array_shift;
 use function array_values;
 use function count;
-use function CuyZ\Valinor\Compiler\{call, logicalOr};
+use function CuyZ\Valinor\Compiler\{call, logicalOr, ternary};
 use function implode;
 use function in_array;
 use function is_int;
@@ -179,7 +179,7 @@ final class ArrayKeyType implements ScalarType, CompositeType, DumpableType
             ->build();
     }
 
-    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    public function compiledCanCast(Node $node): Node
     {
         $conditions = [];
 
@@ -193,10 +193,10 @@ final class ArrayKeyType implements ScalarType, CompositeType, DumpableType
             return $conditions[0];
         }
 
-        return Node::logicalOr(...$conditions);
+        return logicalOr(...$conditions);
     }
 
-    public function compiledCast(ComplianceNode $node): ComplianceNode
+    public function compiledCast(Node $node): Node
     {
         $scalarTypes = [];
 
@@ -214,7 +214,7 @@ final class ArrayKeyType implements ScalarType, CompositeType, DumpableType
         $result = $scalarTypes[count($scalarTypes) - 1]->compiledCast($node);
 
         for ($i = count($scalarTypes) - 2; $i >= 0; $i--) {
-            $result = Node::ternary(
+            $result = ternary(
                 $scalarTypes[$i]->compiledCanCast($node),
                 $scalarTypes[$i]->compiledCast($node),
                 $result,

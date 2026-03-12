@@ -13,7 +13,7 @@ use CuyZ\Valinor\Utility\IsSingleton;
 use Stringable;
 
 use function assert;
-use function CuyZ\Valinor\Compiler\call;
+use function CuyZ\Valinor\Compiler\{call, castTo, logicalOr, ternary};
 use function is_scalar;
 
 /** @internal */
@@ -46,20 +46,20 @@ final class ScalarConcreteType implements ScalarType
         return $generics;
     }
 
-    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    public function compiledCanCast(Node $node): Node
     {
-        return Node::logicalOr(
-            Node::functionCall('is_scalar', [$node]),
+        return logicalOr(
+            call('is_scalar', [$node]),
             $node->instanceOf(\Stringable::class),
         );
     }
 
-    public function compiledCast(ComplianceNode $node): ComplianceNode
+    public function compiledCast(Node $node): Node
     {
         // If Stringable, cast to string; otherwise return as-is (already scalar)
-        return Node::ternary(
+        return ternary(
             $node->instanceOf(\Stringable::class),
-            $node->castTo(NativeStringType::get()),
+            castTo(NativeStringType::get(), $node),
             $node,
         )->wrap();
     }

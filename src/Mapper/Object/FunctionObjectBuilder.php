@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Mapper\Object;
 
-use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\FunctionObject;
 use CuyZ\Valinor\Mapper\Tree\Message\UserlandError;
@@ -14,6 +13,7 @@ use Exception;
 use function array_map;
 use function array_shift;
 use function array_values;
+use function CuyZ\Valinor\Compiler\{className, return_, this, throw_, try_, value, variable};
 use function hash;
 
 /** @internal */
@@ -73,28 +73,28 @@ final class FunctionObjectBuilder implements ObjectBuilder
     /**
      * @return non-empty-list<Node>
      */
-    public function compile(ComplianceNode $values): array
+    public function compile(Node $values): array
     {
         if ($this->constructorIndex !== null) {
-            $callNode = Node::this()->access('customConstructors')->key(Node::value($this->constructorIndex));
+            $callNode = this()->access('customConstructors')->key(value($this->constructorIndex));
         } else {
-            $callNode = Node::this()->access('constructorCallbacks')->key(Node::value($this->callbackKey()));
+            $callNode = this()->access('constructorCallbacks')->key(value($this->callbackKey()));
         }
 
         $arguments = [];
 
         if ($this->isDynamicConstructor) {
-            $arguments[] = Node::value($this->className);
+            $arguments[] = value($this->className);
         }
 
         $arguments[] = $values->unpack();
 
         return [
-            Node::try(
-                Node::return($callNode->call(arguments: $arguments))->asExpression(),
+            try_(
+                return_($callNode->call(arguments: $arguments))->asStatement(),
             )->catches(
                 exception: Exception::class,
-                body: Node::throw(Node::class(UserlandError::class)->callStaticMethod('from', [Node::variable('exception')]))->asExpression(),
+                body: throw_(className(UserlandError::class)->callStaticMethod('from', [variable('exception')]))->asStatement(),
             ),
         ];
     }

@@ -6,13 +6,14 @@ namespace CuyZ\Valinor\Mapper\Compiler;
 
 use CuyZ\Valinor\Compiler\Compiler;
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
-use CuyZ\Valinor\Compiler\Native\MethodNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\TypeMapper;
 use CuyZ\Valinor\Mapper\TreeMapper;
 use CuyZ\Valinor\Mapper\TypeTreeMapperError;
 use CuyZ\Valinor\Type\Type;
+
+use function CuyZ\Valinor\Compiler\{anonymousClass, if_, newClass, param, property, return_, this, throw_, value, variable};
 
 final class TreeMapperRootNode extends Node
 {
@@ -34,69 +35,70 @@ final class TreeMapperRootNode extends Node
 
     private function mapperClassNode(TypeMapper $typeMapper): AnonymousClassNode
     {
-        return Node::anonymousClass()
+        return anonymousClass()
             ->implements(TreeMapper::class)
             ->withArguments(
-                Node::variable('exceptionFilter'),
-                Node::variable('customConstructors'),
-                Node::variable('constructorCallbacks'),
-                Node::variable('converters'),
-                Node::variable('keyConverters'),
-                Node::variable('inferredMapping'),
+                variable('exceptionFilter'),
+                variable('customConstructors'),
+                variable('constructorCallbacks'),
+                variable('converters'),
+                variable('keyConverters'),
+                variable('inferredMapping'),
             )
             ->withProperties(
-                Node::propertyDeclaration('exceptionFilter', '\\Closure'),
-                Node::propertyDeclaration('customConstructors', 'array'),
-                Node::propertyDeclaration('constructorCallbacks', 'array'),
-                Node::propertyDeclaration('converters', 'array'),
-                Node::propertyDeclaration('keyConverters', 'array'),
-                Node::propertyDeclaration('inferredMapping', 'array'),
+                property('exceptionFilter', '\\Closure'),
+                property('customConstructors', 'array'),
+                property('constructorCallbacks', 'array'),
+                property('converters', 'array'),
+                property('keyConverters', 'array'),
+                property('inferredMapping', 'array'),
             )
-            ->withMethods(
-                MethodNode::constructor()
-                    ->withVisibility('public')
-                    ->witParameters(
-                        Node::parameterDeclaration('exceptionFilter', 'callable'),
-                        Node::parameterDeclaration('customConstructors', 'array'),
-                        Node::parameterDeclaration('constructorCallbacks', 'array'),
-                        Node::parameterDeclaration('converters', 'array'),
-                        Node::parameterDeclaration('keyConverters', 'array'),
-                        Node::parameterDeclaration('inferredMapping', 'array'),
-                    )
-                    ->withBody(
-                        Node::property('exceptionFilter')->assign(Node::variable('exceptionFilter'))->asExpression(),
-                        Node::property('customConstructors')->assign(Node::variable('customConstructors'))->asExpression(),
-                        Node::property('constructorCallbacks')->assign(Node::variable('constructorCallbacks'))->asExpression(),
-                        Node::property('converters')->assign(Node::variable('converters'))->asExpression(),
-                        Node::property('keyConverters')->assign(Node::variable('keyConverters'))->asExpression(),
-                        Node::property('inferredMapping')->assign(Node::variable('inferredMapping'))->asExpression(),
-                    ),
-                Node::method('map')
-                    ->withVisibility('public')
-                    ->witParameters(
-                        Node::parameterDeclaration('signature', 'string'),
-                        Node::parameterDeclaration('source', 'mixed'),
-                    )
-                    ->withReturnType('mixed')
-                    ->withBody(
-                        Node::variable('context')->assign(Node::newClass(MappingContext::class))->asExpression(),
-                        Node::variable('result')->assign(
-                            $typeMapper->formatValueNode(
-                                Node::variable('source'),
-                                Node::variable('context'),
-                            ),
-                        )->asExpression(),
-                        Node::if(
-                            condition: Node::variable('context')->callMethod('containsErrors'),
-                            body: Node::throw(Node::newClass(
-                                TypeTreeMapperError::class,
-                                Node::variable('source'),
-                                Node::value($this->type->toString()),
-                                Node::variable('context')->access('messages')->callMethod('getArrayCopy'),
-                            ))->asExpression(),
+            ->withConstructor(
+                visibility: 'public',
+                parameters: [
+                    param('exceptionFilter', 'callable'),
+                    param('customConstructors', 'array'),
+                    param('constructorCallbacks', 'array'),
+                    param('converters', 'array'),
+                    param('keyConverters', 'array'),
+                    param('inferredMapping', 'array'),
+                ],
+                body: [
+                    this()->access('exceptionFilter')->assign(variable('exceptionFilter'))->asStatement(),
+                    this()->access('customConstructors')->assign(variable('customConstructors'))->asStatement(),
+                    this()->access('constructorCallbacks')->assign(variable('constructorCallbacks'))->asStatement(),
+                    this()->access('converters')->assign(variable('converters'))->asStatement(),
+                    this()->access('keyConverters')->assign(variable('keyConverters'))->asStatement(),
+                    this()->access('inferredMapping')->assign(variable('inferredMapping'))->asStatement(),
+                ],
+            )
+            ->withMethod(
+                name: 'map',
+                visibility: 'public',
+                parameters: [
+                    param('signature', 'string'),
+                    param('source', 'mixed'),
+                ],
+                returnType: 'mixed',
+                body: [
+                    variable('context')->assign(newClass(MappingContext::class))->asStatement(),
+                    variable('result')->assign(
+                        $typeMapper->formatValueNode(
+                            variable('source'),
+                            variable('context'),
                         ),
-                        Node::return(Node::variable('result')),
+                    )->asStatement(),
+                    if_(
+                        condition: variable('context')->callMethod('containsErrors'),
+                        body: throw_(newClass(
+                            TypeTreeMapperError::class,
+                            variable('source'),
+                            value($this->type->toString()),
+                            variable('context')->access('messages')->callMethod('getArrayCopy'),
+                        ))->asStatement(),
                     ),
+                    return_(variable('result')),
+                ],
             );
     }
 }

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
-use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
@@ -24,6 +23,7 @@ use CuyZ\Valinor\Type\VacantType;
 use CuyZ\Valinor\Utility\ValueDumper;
 
 use function array_keys;
+use function CuyZ\Valinor\Compiler\{call, className, forEach_, if_, negate, newClass, param, return_, this, throw_, value, variable};
 
 /** @internal */
 final class ShapedArrayTypeMapper implements TypeMapper
@@ -34,9 +34,9 @@ final class ShapedArrayTypeMapper implements TypeMapper
         private bool $applyKeyConverters = true,
     ) {}
 
-    public function formatValueNode(ComplianceNode $value, ComplianceNode $context): Node
+    public function formatValueNode(Node $value, Node $context): Node
     {
-        return Node::this()->callMethod(
+        return this()->callMethod(
             method: $this->methodName(),
             arguments: [
                 $value,
@@ -54,7 +54,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
         }
 
         // Register a placeholder method to prevent infinite recursion.
-        $class = $class->withMethods(Node::method($methodName));
+        $class = $class->withMethod($methodName);
 
         // Compute effective type signature for error messages
         $dumpedType = $typeMapperFactory->dumpType($this->type);
@@ -62,11 +62,11 @@ final class ShapedArrayTypeMapper implements TypeMapper
         $nodes = IterableValidationNodes::build($settings, $this->type, $dumpedType);
 
         // Convert to array if needed
-        $nodes[] = Node::if(
-            condition: Node::negate(Node::functionCall('is_array', [Node::variable('source')])),
-            body: Node::variable('source')->assign(
-                Node::functionCall('iterator_to_array', [Node::variable('source')]),
-            )->asExpression(),
+        $nodes[] = if_(
+            condition: negate(call('is_array', [variable('source')])),
+            body: variable('source')->assign(
+                call('iterator_to_array', [variable('source')]),
+            )->asStatement(),
         );
 
         // Apply key converters if configured
@@ -75,7 +75,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
         }
 
         // Initialize result array
-        $nodes[] = Node::variable('result')->assign(Node::value([]))->asExpression();
+        $nodes[] = variable('result')->assign(value([]))->asStatement();
 
         // Process each element
         foreach ($this->type->elements as $key => $element) {
@@ -98,62 +98,62 @@ final class ShapedArrayTypeMapper implements TypeMapper
 
             if ($element->isOptional()) {
                 // Optional element: only process if key exists
-                $nodes[] = Node::if(
-                    condition: Node::functionCall('array_key_exists', [
-                        Node::value($key),
-                        Node::variable('source'),
+                $nodes[] = if_(
+                    condition: call('array_key_exists', [
+                        value($key),
+                        variable('source'),
                     ]),
-                    body: Node::variable('result')->key(Node::value($key))->assign(
+                    body: variable('result')->key(value($key))->assign(
                         $subMapper->formatValueNode(
-                            Node::variable('source')->key(Node::value($key)),
-                            Node::variable('context')->callMethod('sub', [Node::value($keyStr)]),
+                            variable('source')->key(value($key)),
+                            variable('context')->callMethod('sub', [value($keyStr)]),
                         ),
-                    )->asExpression(),
+                    )->asStatement(),
                 );
             } else {
                 // Required element: map value if exists, otherwise add missing error
-                $nodes[] = Node::if(
-                    condition: Node::functionCall('array_key_exists', [
-                        Node::value($key),
-                        Node::variable('source'),
+                $nodes[] = if_(
+                    condition: call('array_key_exists', [
+                        value($key),
+                        variable('source'),
                     ]),
-                    body: Node::variable('result')->key(Node::value($key))->assign(
+                    body: variable('result')->key(value($key))->assign(
                         $subMapper->formatValueNode(
-                            Node::variable('source')->key(Node::value($key)),
-                            Node::variable('context')->callMethod('sub', [Node::value($keyStr)]),
+                            variable('source')->key(value($key)),
+                            variable('context')->callMethod('sub', [value($keyStr)]),
                         ),
-                    )->asExpression(),
+                    )->asStatement(),
                 );
 
                 if ($settings->allowUndefinedValues) {
                     // When undefined values are allowed, pass null through sub-mapper
                     // (it handles null→default conversion, e.g. null→[] for lists)
-                    $nodes[] = Node::if(
-                        condition: Node::negate(Node::functionCall('array_key_exists', [
-                            Node::value($key),
-                            Node::variable('source'),
+                    $nodes[] = if_(
+                        condition: negate(call('array_key_exists', [
+                            value($key),
+                            variable('source'),
                         ])),
-                        body: Node::variable('result')->key(Node::value($key))->assign(
+                        body: variable('result')->key(value($key))->assign(
                             $subMapper->formatValueNode(
-                                Node::value(null),
-                                Node::variable('context')->callMethod('sub', [Node::value($keyStr)]),
+                                value(null),
+                                variable('context')->callMethod('sub', [value($keyStr)]),
                             ),
-                        )->asExpression(),
+                        )->asStatement(),
                     );
                 } else {
                     // When undefined values are NOT allowed, add a proper missing value error
                     $dumpedElementType = $typeMapperFactory->dumpType($element->type());
-                    $nodes[] = Node::if(
-                        condition: Node::negate(Node::functionCall('array_key_exists', [
-                            Node::value($key),
-                            Node::variable('source'),
+                    $nodes[] = if_(
+                        condition: negate(call('array_key_exists', [
+                            value($key),
+                            variable('source'),
                         ])),
-                        body: Node::variable('context')->callMethod('sub', [Node::value($keyStr)])->callMethod('addMessage', [
+                        body: variable('context')->callMethod('sub', [value($keyStr)])->callMethod('addMessage', [
                             new MessageNode(MissingNodeValue::from($element->type())),
-                            Node::value($element->type()->toString()),
-                            Node::value('*missing*'),
-                            Node::value($dumpedElementType),
-                        ])->asExpression(),
+                            value($element->type()->toString()),
+                            value('*missing*'),
+                            value($dumpedElementType),
+                        ])->asStatement(),
                     );
                 }
             }
@@ -183,99 +183,99 @@ final class ShapedArrayTypeMapper implements TypeMapper
             if ($isPermissive && ! $settings->allowPermissiveTypes) {
                 // Generate runtime code that throws when extra keys are encountered
                 $definedKeys = array_keys($this->type->elements);
-                $nodes[] = Node::variable('remaining')->assign(
-                    Node::functionCall('array_diff_key', [
-                        Node::variable('source'),
-                        Node::functionCall('array_flip', [Node::value($definedKeys)]),
+                $nodes[] = variable('remaining')->assign(
+                    call('array_diff_key', [
+                        variable('source'),
+                        call('array_flip', [value($definedKeys)]),
                     ]),
-                )->asExpression();
+                )->asStatement();
 
-                $nodes[] = Node::if(
-                    condition: Node::negate(Node::variable('remaining')->equals(Node::value([]))->wrap()),
-                    body: Node::throw(
-                        Node::newClass(
+                $nodes[] = if_(
+                    condition: negate(variable('remaining')->equals(value([]))->wrap()),
+                    body: throw_(
+                        newClass(
                             CannotMapToPermissiveType::class,
-                            Node::value($permissiveTypeName),
-                            Node::functionCall('strval', [
-                                Node::functionCall('array_key_first', [Node::variable('remaining')]),
+                            value($permissiveTypeName),
+                            call('strval', [
+                                call('array_key_first', [variable('remaining')]),
                             ]),
                         ),
-                    )->asExpression(),
+                    )->asStatement(),
                 );
             } elseif (! $unsealedType instanceof VacantType) {
                 // Compute remaining keys
                 $definedKeys = array_keys($this->type->elements);
-                $nodes[] = Node::variable('remaining')->assign(
-                    Node::functionCall('array_diff_key', [
-                        Node::variable('source'),
-                        Node::functionCall('array_flip', [Node::value($definedKeys)]),
+                $nodes[] = variable('remaining')->assign(
+                    call('array_diff_key', [
+                        variable('source'),
+                        call('array_flip', [value($definedKeys)]),
                     ]),
-                )->asExpression();
+                )->asStatement();
 
                 // Map remaining key-value pairs through the unsealed type's sub-type
                 $valueMapper = $typeMapperFactory->for($unsealedType->subType());
                 $class = $valueMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
 
-                $nodes[] = Node::forEach(
-                    Node::variable('remaining'),
+                $nodes[] = forEach_(
+                    variable('remaining'),
                     'remainingKey',
                     'remainingValue',
-                    Node::variable('result')->key(Node::variable('remainingKey'))->assign(
+                    variable('result')->key(variable('remainingKey'))->assign(
                         $valueMapper->formatValueNode(
-                            Node::variable('remainingValue'),
-                            Node::variable('context')->callMethod('sub', [
-                                Node::functionCall('strval', [Node::variable('remainingKey')]),
+                            variable('remainingValue'),
+                            variable('context')->callMethod('sub', [
+                                call('strval', [variable('remainingKey')]),
                             ]),
                         ),
-                    )->asExpression(),
+                    )->asStatement(),
                 );
             }
         } elseif (! $settings->allowSuperfluousKeys) {
             // Sealed array: detect extra keys
             $definedKeys = array_keys($this->type->elements);
-            $nodes[] = Node::variable('extraKeys')->assign(
-                Node::functionCall('array_diff_key', [
-                    Node::variable('source'),
-                    Node::functionCall('array_flip', [Node::value($definedKeys)]),
+            $nodes[] = variable('extraKeys')->assign(
+                call('array_diff_key', [
+                    variable('source'),
+                    call('array_flip', [value($definedKeys)]),
                 ]),
-            )->asExpression();
+            )->asStatement();
 
-            $nodes[] = Node::forEach(
-                Node::variable('extraKeys'),
+            $nodes[] = forEach_(
+                variable('extraKeys'),
                 'extraKey',
                 'extraValue',
-                Node::if(
-                    condition: Node::negate(Node::variable('context')->callMethod('isAllowedSuperfluousKey', [
-                        Node::functionCall('strval', [Node::variable('extraKey')]),
+                if_(
+                    condition: negate(variable('context')->callMethod('isAllowedSuperfluousKey', [
+                        call('strval', [variable('extraKey')]),
                     ])),
-                    body: Node::variable('context')->callMethod('sub', [
-                        Node::functionCall('strval', [Node::variable('extraKey')]),
+                    body: variable('context')->callMethod('sub', [
+                        call('strval', [variable('extraKey')]),
                     ])->callMethod('addMessage', [
                         new MessageNode(new UnexpectedKeyInSource()),
-                        Node::value($this->type->toString()),
-                        Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('extraValue')]),
-                        Node::value($dumpedType),
-                    ])->asExpression(),
+                        value($this->type->toString()),
+                        className(ValueDumper::class)->callStaticMethod('dump', [variable('extraValue')]),
+                        value($dumpedType),
+                    ])->asStatement(),
                 ),
             );
         }
 
         // Check for errors after processing all elements
-        $nodes[] = Node::if(
-            condition: Node::variable('context')->callMethod('containsErrors'),
-            body: Node::return(Node::value(null)),
+        $nodes[] = if_(
+            condition: variable('context')->callMethod('containsErrors'),
+            body: return_(value(null)),
         );
 
-        $nodes[] = Node::return(Node::variable('result'));
+        $nodes[] = return_(variable('result'));
 
-        return $class->withMethods(
-            Node::method($methodName)
-                ->witParameters(
-                    Node::parameterDeclaration('source', 'mixed'),
-                    Node::parameterDeclaration('context', MappingContext::class),
-                )
-                ->withReturnType('?array')
-                ->withBody(...$nodes),
+        return $class->withMethod(
+            name: $methodName,
+            parameters: [
+                param('source', 'mixed'),
+                param('context', MappingContext::class),
+            ],
+            returnType: '?array',
+            body: $nodes,
         );
     }
 

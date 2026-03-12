@@ -13,7 +13,7 @@ use CuyZ\Valinor\Utility\IsSingleton;
 use Stringable;
 
 use function assert;
-use function CuyZ\Valinor\Compiler\call;
+use function CuyZ\Valinor\Compiler\{call, castTo, ternary};
 use function is_numeric;
 use function is_string;
 
@@ -77,20 +77,20 @@ final class NumericStringType implements StringType
             ->build();
     }
 
-    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    public function compiledCanCast(Node $node): Node
     {
-        $valueNode = Node::ternary(
+        $valueNode = ternary(
             $node->instanceOf(\Stringable::class),
-            $node->castTo($this),
+            castTo($this, $node),
             $node,
         );
 
-        return Node::functionCall('is_numeric', [$valueNode]);
+        return call('is_numeric', [$valueNode]);
     }
 
-    public function compiledCast(ComplianceNode $node): ComplianceNode
+    public function compiledCast(Node $node): Node
     {
-        return $node->castTo($this);
+        return castTo($this, $node);
     }
 
     public function nativeType(): NativeStringType

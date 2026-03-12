@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
-use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
+
+use function CuyZ\Valinor\Compiler\{if_, newClass, param, return_, this, throw_, value, variable};
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotResolveObjectType;
@@ -21,9 +22,9 @@ final class InterfacePassthroughTypeMapper implements TypeMapper
         private ObjectType $type,
     ) {}
 
-    public function formatValueNode(ComplianceNode $value, ComplianceNode $context): Node
+    public function formatValueNode(Node $value, Node $context): Node
     {
-        return Node::this()->callMethod(
+        return this()->callMethod(
             method: $this->methodName(),
             arguments: [
                 $value,
@@ -40,25 +41,25 @@ final class InterfacePassthroughTypeMapper implements TypeMapper
             return $class;
         }
 
-        return $class->withMethods(
-            Node::method($methodName)
-                ->witParameters(
-                    Node::parameterDeclaration('source', 'mixed'),
-                    Node::parameterDeclaration('context', MappingContext::class),
-                )
-                ->withReturnType('mixed')
-                ->withBody(
-                    Node::if(
-                        condition: Node::variable('source')->instanceOf($this->type->className()),
-                        body: Node::return(Node::variable('source')),
-                    ),
-                    Node::throw(
-                        Node::newClass(
-                            CannotResolveObjectType::class,
-                            Node::value($this->type->className()),
-                        ),
-                    )->asExpression(),
+        return $class->withMethod(
+            name: $methodName,
+            parameters: [
+                param('source', 'mixed'),
+                param('context', MappingContext::class),
+            ],
+            returnType: 'mixed',
+            body: [
+                if_(
+                    condition: variable('source')->instanceOf($this->type->className()),
+                    body: return_(variable('source')),
                 ),
+                throw_(
+                    newClass(
+                        CannotResolveObjectType::class,
+                        value($this->type->className()),
+                    ),
+                )->asStatement(),
+            ],
         );
     }
 

@@ -13,7 +13,7 @@ use CuyZ\Valinor\Type\Parser\Exception\Scalar\SameValueForIntegerRange;
 use CuyZ\Valinor\Type\Type;
 
 use function assert;
-use function CuyZ\Valinor\Compiler\{call, value};
+use function CuyZ\Valinor\Compiler\{call, castTo, negate, ternary, value};
 use function filter_var;
 use function is_bool;
 use function is_int;
@@ -122,30 +122,30 @@ final class IntegerRangeType implements IntegerType
             ->build();
     }
 
-    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    public function compiledCanCast(Node $node): Node
     {
-        $trimmedValue = Node::ternary(
-            Node::functionCall('is_string', [$node])->and($node->different(Node::value(''))),
-            Node::ternary(
-                Node::functionCall('ltrim', [$node, Node::value('0')])->different(Node::value('')),
-                Node::functionCall('ltrim', [$node, Node::value('0')]),
-                Node::value('0'),
+        $trimmedValue = ternary(
+            call('is_string', [$node])->and($node->different(value(''))),
+            ternary(
+                call('ltrim', [$node, value('0')])->different(value('')),
+                call('ltrim', [$node, value('0')]),
+                value('0'),
             ),
             $node,
         );
 
-        return Node::negate(Node::functionCall('is_bool', [$node]))
+        return negate(call('is_bool', [$node]))
             ->and(
-                Node::functionCall('filter_var', [$trimmedValue, Node::value(FILTER_VALIDATE_INT)])
-                    ->different(Node::value(false))
+                call('filter_var', [$trimmedValue, value(FILTER_VALIDATE_INT)])
+                    ->different(value(false))
             )
-            ->and($node->isGreaterOrEqualsTo(Node::value($this->min)))
-            ->and($node->isLessOrEqualsTo(Node::value($this->max)));
+            ->and($node->isGreaterOrEqualsTo(value($this->min)))
+            ->and($node->isLessOrEqualsTo(value($this->max)));
     }
 
-    public function compiledCast(ComplianceNode $node): ComplianceNode
+    public function compiledCast(Node $node): Node
     {
-        return $node->castTo($this);
+        return castTo($this, $node);
     }
 
     public function min(): int

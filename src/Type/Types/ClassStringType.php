@@ -20,7 +20,7 @@ use Stringable;
 use function array_filter;
 use function array_map;
 use function assert;
-use function CuyZ\Valinor\Compiler\{call, logicalOr, value};
+use function CuyZ\Valinor\Compiler\{call, castTo, logicalOr, value};
 use function implode;
 use function is_a;
 use function is_string;
@@ -140,24 +140,24 @@ final class ClassStringType implements StringType, CompositeType
         return $selfTypes->inferGenericsFrom($otherTypes, $generics);
     }
 
-    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    public function compiledCanCast(Node $node): Node
     {
-        $isStringOrStringable = Node::logicalOr(
-            Node::functionCall('is_string', [$node]),
+        $isStringOrStringable = logicalOr(
+            call('is_string', [$node]),
             $node->instanceOf(Stringable::class),
         );
 
         // After casting to string, the accepts check determines if it's a valid class-string
-        $castNode = $node->castTo(NativeStringType::get());
+        $castNode = castTo(NativeStringType::get(), $node);
 
         return $isStringOrStringable->wrap()->and(
             $this->compiledAccept($castNode),
         );
     }
 
-    public function compiledCast(ComplianceNode $node): ComplianceNode
+    public function compiledCast(Node $node): Node
     {
-        return $node->castTo(NativeStringType::get());
+        return castTo(NativeStringType::get(), $node);
     }
 
     public function canCast(mixed $value): bool

@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Mapper\Object;
 
-use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\Parameters;
+
+use function CuyZ\Valinor\Compiler\{array_, call, value, variable};
 
 /** @internal */
 final class VariadicCompiler
@@ -23,7 +24,7 @@ final class VariadicCompiler
      */
     public static function compileVariadicArgs(
         Parameters $parameters,
-        ComplianceNode $values,
+        Node $values,
     ): ?array {
         // Check for variadic parameters
         $variadicName = null;
@@ -52,15 +53,15 @@ final class VariadicCompiler
         $flatParts = [];
 
         foreach ($nonVariadicNames as $name) {
-            $flatParts[] = Node::array([$values->key(Node::value($name))]);
+            $flatParts[] = array_([$values->key(value($name))]);
         }
 
-        $flatParts[] = Node::functionCall('array_values', [$values->key(Node::value($variadicName))]);
+        $flatParts[] = call('array_values', [$values->key(value($variadicName))]);
 
         return [
-            Node::variable('__flatArgs')->assign(
-                count($flatParts) === 1 ? $flatParts[0] : Node::functionCall('array_merge', $flatParts),
-            )->asExpression(),
+            variable('__flatArgs')->assign(
+                count($flatParts) === 1 ? $flatParts[0] : call('array_merge', $flatParts),
+            )->asStatement(),
         ];
     }
 }

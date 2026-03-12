@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
-use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
+
+use function CuyZ\Valinor\Compiler\{className, if_, param, return_, this, value, variable};
 use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
@@ -17,9 +18,9 @@ use CuyZ\Valinor\Utility\ValueDumper;
 /** @internal */
 final class NullTypeMapper implements TypeMapper
 {
-    public function formatValueNode(ComplianceNode $value, ComplianceNode $context): Node
+    public function formatValueNode(Node $value, Node $context): Node
     {
-        return Node::this()->callMethod(
+        return this()->callMethod(
             method: 'map_null',
             arguments: [
                 $value,
@@ -34,30 +35,30 @@ final class NullTypeMapper implements TypeMapper
             return $class;
         }
 
-        return $class->withMethods(
-            Node::method('map_null')
-                ->witParameters(
-                    Node::parameterDeclaration('source', 'mixed'),
-                    Node::parameterDeclaration('context', MappingContext::class),
-                )
-                ->withReturnType('null')
-                ->withBody(
-                    Node::if(
-                        condition: Node::variable('source')->different(Node::value(null)),
-                        body: [
-                            Node::variable('context')->callMethod(
-                                method: 'addMessage',
-                                arguments: [
-                                    new MessageNode(new SourceIsNotNull()),
-                                    Node::value('null'),
-                                    Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                                ]
-                            )->asExpression(),
-                            Node::return(Node::value(null)),
-                        ],
-                    ),
-                    Node::return(Node::value(null)),
+        return $class->withMethod(
+            name: 'map_null',
+            parameters: [
+                param('source', 'mixed'),
+                param('context', MappingContext::class),
+            ],
+            returnType: 'null',
+            body: [
+                if_(
+                    condition: variable('source')->different(value(null)),
+                    body: [
+                        variable('context')->callMethod(
+                            method: 'addMessage',
+                            arguments: [
+                                new MessageNode(new SourceIsNotNull()),
+                                value('null'),
+                                className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
+                            ]
+                        )->asStatement(),
+                        return_(value(null)),
+                    ],
                 ),
+                return_(value(null)),
+            ],
         );
     }
 }

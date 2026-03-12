@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
-use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\ClassDefinition;
+
+use function CuyZ\Valinor\Compiler\{array_, call, className, if_, negate, newClass, param, return_, this, throw_, try_, value, variable};
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
@@ -42,9 +43,9 @@ final class ObjectTypeMapper implements TypeMapper
         private array $builders,
     ) {}
 
-    public function formatValueNode(ComplianceNode $value, ComplianceNode $context): Node
+    public function formatValueNode(Node $value, Node $context): Node
     {
-        return Node::this()->callMethod(
+        return this()->callMethod(
             method: $this->methodName(),
             arguments: [
                 $value,
@@ -63,22 +64,22 @@ final class ObjectTypeMapper implements TypeMapper
 
         // Register a placeholder method immediately to prevent infinite
         // recursion when types reference themselves (circular objects).
-        $class = $class->withMethods(Node::method($methodName));
+        $class = $class->withMethod($methodName);
 
         // Compute effective type signature using TypeDumper for error messages
         $dumpedType = $typeMapperFactory->dumpType($this->class->type);
 
         $nodes = [
-            Node::if(
-                condition: $this->class->type->compiledAccept(Node::variable('source')),
-                body: Node::return(Node::variable('source')),
+            if_(
+                condition: $this->class->type->compiledAccept(variable('source')),
+                body: return_(variable('source')),
             ),
         ];
 
         if ($settings->allowUndefinedValues) {
-            $nodes[] = Node::if(
-                condition: Node::variable('source')->equals(Node::value(null)),
-                body: Node::variable('source')->assign(Node::value([]))->asExpression(),
+            $nodes[] = if_(
+                condition: variable('source')->equals(value(null)),
+                body: variable('source')->assign(value([]))->asStatement(),
             );
         }
 
@@ -115,23 +116,23 @@ final class ObjectTypeMapper implements TypeMapper
 
         if ($hasMultipleBuilders) {
             // All builders failed: report error
-            $nodes[] = Node::variable('context')->callMethod('addMessage', [
+            $nodes[] = variable('context')->callMethod('addMessage', [
                 new MessageNode(new CannotFindObjectBuilder()),
-                Node::value($this->class->type->toString()),
-                Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                Node::value($dumpedType),
-            ])->asExpression();
-            $nodes[] = Node::return(Node::value(null));
+                value($this->class->type->toString()),
+                className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
+                value($dumpedType),
+            ])->asStatement();
+            $nodes[] = return_(value(null));
         }
 
-        return $class->withMethods(
-            Node::method($methodName)
-                ->witParameters(
-                    Node::parameterDeclaration('source', 'mixed'),
-                    Node::parameterDeclaration('context', MappingContext::class),
-                )
-                ->withReturnType('?' . $this->class->type->nativeType()->toString())
-                ->withBody(...$nodes),
+        return $class->withMethod(
+            name: $methodName,
+            parameters: [
+                param('source', 'mixed'),
+                param('context', MappingContext::class),
+            ],
+            returnType: '?' . $this->class->type->nativeType()->toString(),
+            body: $nodes,
         );
     }
 
@@ -179,93 +180,93 @@ final class ObjectTypeMapper implements TypeMapper
         $defaultNodes = [];
         foreach ($arguments as $argument) {
             if (! $argument->isRequired()) {
-                $defaultNodes[] = Node::if(
-                    condition: Node::negate(Node::functionCall('array_key_exists', [
-                        Node::value($argument->name()),
-                        Node::variable('values'),
+                $defaultNodes[] = if_(
+                    condition: negate(call('array_key_exists', [
+                        value($argument->name()),
+                        variable('values'),
                     ])),
-                    body: Node::variable('values')->key(Node::value($argument->name()))->assign(
-                        Node::value($argument->defaultValue()),
-                    )->asExpression(),
+                    body: variable('values')->key(value($argument->name()))->assign(
+                        value($argument->defaultValue()),
+                    )->asStatement(),
                 );
             }
         }
 
-        $tryBody = array_merge($defaultNodes, $builder->compile(Node::variable('values')));
+        $tryBody = array_merge($defaultNodes, $builder->compile(variable('values')));
         $buildNodes = [
             $this->buildConstructionTryNode($tryBody, $dumpedType),
         ];
 
         if ($hasFlatPath) {
             // Single-arg with flat path: try keyed first, then flat
-            $keyedCondition = Node::functionCall('is_array', [Node::variable('source')])
-                ->and(Node::functionCall('array_key_exists', [
-                    Node::value($argName),
-                    Node::variable('source'),
+            $keyedCondition = call('is_array', [variable('source')])
+                ->and(call('array_key_exists', [
+                    value($argName),
+                    variable('source'),
                 ]));
 
             if ($argType instanceof CompositeTraversableType) {
                 if (! $settings->allowSuperfluousKeys) {
                     $keyedCondition = $keyedCondition->and(
-                        Node::functionCall('count', [Node::variable('source')])->equals(Node::value(1)),
+                        call('count', [variable('source')])->equals(value(1)),
                     );
                 }
             } else {
                 $keyedCondition = $keyedCondition->or(
-                    Node::variable('source')->equals(Node::value([])),
+                    variable('source')->equals(value([])),
                 );
             }
 
             // Keyed path with isolation
             $keyedBody = [
-                Node::variable('isolatedCtx')->assign(
-                    Node::variable('context')->callMethod('isolate'),
-                )->asExpression(),
-                Node::variable('values')->assign(
-                    $shapedMapper->formatValueNode(Node::variable('source'), Node::variable('isolatedCtx')),
-                )->asExpression(),
-                Node::if(
-                    condition: Node::negate(Node::variable('isolatedCtx')->callMethod('containsErrors')),
+                variable('isolatedCtx')->assign(
+                    variable('context')->callMethod('isolate'),
+                )->asStatement(),
+                variable('values')->assign(
+                    $shapedMapper->formatValueNode(variable('source'), variable('isolatedCtx')),
+                )->asStatement(),
+                if_(
+                    condition: negate(variable('isolatedCtx')->callMethod('containsErrors')),
                     body: $buildNodes,
                 ),
             ];
 
-            $nodes[] = Node::if(
+            $nodes[] = if_(
                 condition: $keyedCondition,
                 body: $keyedBody,
             );
 
             // Flat path with isolation
-            $nodes[] = Node::variable('isolatedCtx')->assign(
-                Node::variable('context')->callMethod('isolate'),
-            )->asExpression();
-            $nodes[] = Node::variable('mappedValue')->assign(
+            $nodes[] = variable('isolatedCtx')->assign(
+                variable('context')->callMethod('isolate'),
+            )->asStatement();
+            $nodes[] = variable('mappedValue')->assign(
                 $flatMapper->formatValueNode(
-                    Node::variable('source'),
-                    Node::variable('isolatedCtx'),
+                    variable('source'),
+                    variable('isolatedCtx'),
                 ),
-            )->asExpression();
-            $nodes[] = Node::if(
-                condition: Node::negate(Node::variable('isolatedCtx')->callMethod('containsErrors')),
+            )->asStatement();
+            $nodes[] = if_(
+                condition: negate(variable('isolatedCtx')->callMethod('containsErrors')),
                 body: [
-                    Node::variable('values')->assign(
-                        Node::array([
-                            $argName => Node::variable('mappedValue'),
+                    variable('values')->assign(
+                        array_([
+                            $argName => variable('mappedValue'),
                         ]),
-                    )->asExpression(),
+                    )->asStatement(),
                     ...$buildNodes,
                 ],
             );
         } else {
             // Multi-arg path with isolation
-            $nodes[] = Node::variable('isolatedCtx')->assign(
-                Node::variable('context')->callMethod('isolate'),
-            )->asExpression();
-            $nodes[] = Node::variable('values')->assign(
-                $shapedMapper->formatValueNode(Node::variable('source'), Node::variable('isolatedCtx')),
-            )->asExpression();
-            $nodes[] = Node::if(
-                condition: Node::negate(Node::variable('isolatedCtx')->callMethod('containsErrors')),
+            $nodes[] = variable('isolatedCtx')->assign(
+                variable('context')->callMethod('isolate'),
+            )->asStatement();
+            $nodes[] = variable('values')->assign(
+                $shapedMapper->formatValueNode(variable('source'), variable('isolatedCtx')),
+            )->asStatement();
+            $nodes[] = if_(
+                condition: negate(variable('isolatedCtx')->callMethod('containsErrors')),
                 body: $buildNodes,
             );
         }
@@ -303,26 +304,26 @@ final class ObjectTypeMapper implements TypeMapper
         // Default value + build nodes (reused by shaped and flat paths)
         $defaultAndBuildNodes = [];
         if (! $argument->isRequired()) {
-            $defaultAndBuildNodes[] = Node::if(
-                condition: Node::negate(Node::functionCall('array_key_exists', [
-                    Node::value($argName),
-                    Node::variable('values'),
+            $defaultAndBuildNodes[] = if_(
+                condition: negate(call('array_key_exists', [
+                    value($argName),
+                    variable('values'),
                 ])),
-                body: Node::variable('values')->key(Node::value($argName))->assign(
-                    Node::value($argument->defaultValue()),
-                )->asExpression(),
+                body: variable('values')->key(value($argName))->assign(
+                    value($argument->defaultValue()),
+                )->asStatement(),
             );
         }
-        $tryBody = array_merge($defaultAndBuildNodes, $builder->compile(Node::variable('values')));
+        $tryBody = array_merge($defaultAndBuildNodes, $builder->compile(variable('values')));
         $defaultAndBuildNodes = [
             $this->buildConstructionTryNode($tryBody, $dumpedType),
         ];
 
         // Keyed path condition: source is array with the argument name as key
-        $keyedCondition = Node::functionCall('is_array', [Node::variable('source')])
-            ->and(Node::functionCall('array_key_exists', [
-                Node::value($argName),
-                Node::variable('source'),
+        $keyedCondition = call('is_array', [variable('source')])
+            ->and(call('array_key_exists', [
+                value($argName),
+                variable('source'),
             ]));
 
         if ($argType instanceof CompositeTraversableType) {
@@ -331,49 +332,49 @@ final class ObjectTypeMapper implements TypeMapper
             } else {
                 // Only use keyed path when source has exactly one key
                 $keyedCondition = $keyedCondition->and(
-                    Node::functionCall('count', [Node::variable('source')])->equals(Node::value(1)),
+                    call('count', [variable('source')])->equals(value(1)),
                 );
             }
         } else {
             // For non-traversable types, also handle empty array via shaped mapper
             $keyedCondition = $keyedCondition->or(
-                Node::variable('source')->equals(Node::value([])),
+                variable('source')->equals(value([])),
             );
         }
 
         // Shaped array path: delegate to ShapedArrayTypeMapper
-        $nodes[] = Node::if(
+        $nodes[] = if_(
             condition: $keyedCondition,
             body: [
-                Node::variable('values')->assign(
-                    $shapedMapper->formatValueNode(Node::variable('source'), Node::variable('context')),
-                )->asExpression(),
-                Node::if(
-                    condition: Node::variable('values')->equals(Node::value(null)),
-                    body: Node::return(Node::value(null)),
+                variable('values')->assign(
+                    $shapedMapper->formatValueNode(variable('source'), variable('context')),
+                )->asStatement(),
+                if_(
+                    condition: variable('values')->equals(value(null)),
+                    body: return_(value(null)),
                 ),
                 ...$defaultAndBuildNodes,
             ],
         );
 
         // Flat path: map source directly as the argument value
-        $nodes[] = Node::variable('mappedValue')->assign(
+        $nodes[] = variable('mappedValue')->assign(
             $flatMapper->formatValueNode(
-                Node::variable('source'),
-                Node::variable('context'),
+                variable('source'),
+                variable('context'),
             ),
-        )->asExpression();
+        )->asStatement();
 
-        $nodes[] = Node::if(
-            condition: Node::variable('context')->callMethod('containsErrors'),
-            body: Node::return(Node::value(null)),
+        $nodes[] = if_(
+            condition: variable('context')->callMethod('containsErrors'),
+            body: return_(value(null)),
         );
 
-        $nodes[] = Node::variable('values')->assign(
-            Node::array([
-                $argName => Node::variable('mappedValue'),
+        $nodes[] = variable('values')->assign(
+            array_([
+                $argName => variable('mappedValue'),
             ]),
-        )->asExpression();
+        )->asStatement();
 
         $nodes = [...$nodes, ...$defaultAndBuildNodes];
     }
@@ -397,32 +398,32 @@ final class ObjectTypeMapper implements TypeMapper
         $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, applyKeyConverters: false);
         $class = $shapedMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
 
-        $nodes[] = Node::variable('values')->assign(
-            $shapedMapper->formatValueNode(Node::variable('source'), Node::variable('context')),
-        )->asExpression();
+        $nodes[] = variable('values')->assign(
+            $shapedMapper->formatValueNode(variable('source'), variable('context')),
+        )->asStatement();
 
-        $nodes[] = Node::if(
-            condition: Node::variable('values')->equals(Node::value(null)),
-            body: Node::return(Node::value(null)),
+        $nodes[] = if_(
+            condition: variable('values')->equals(value(null)),
+            body: return_(value(null)),
         );
 
         // Apply default values for optional arguments
         $defaultNodes = [];
         foreach ($arguments as $argument) {
             if (! $argument->isRequired()) {
-                $defaultNodes[] = Node::if(
-                    condition: Node::negate(Node::functionCall('array_key_exists', [
-                        Node::value($argument->name()),
-                        Node::variable('values'),
+                $defaultNodes[] = if_(
+                    condition: negate(call('array_key_exists', [
+                        value($argument->name()),
+                        variable('values'),
                     ])),
-                    body: Node::variable('values')->key(Node::value($argument->name()))->assign(
-                        Node::value($argument->defaultValue()),
-                    )->asExpression(),
+                    body: variable('values')->key(value($argument->name()))->assign(
+                        value($argument->defaultValue()),
+                    )->asStatement(),
                 );
             }
         }
 
-        $tryBody = array_merge($defaultNodes, $builder->compile(Node::variable('values')));
+        $tryBody = array_merge($defaultNodes, $builder->compile(variable('values')));
         $nodes[] = $this->buildConstructionTryNode($tryBody, $dumpedType);
     }
 
@@ -489,26 +490,26 @@ final class ObjectTypeMapper implements TypeMapper
      */
     private function buildConstructionTryNode(array $tryBody, string $dumpedType): Node
     {
-        return Node::try(...$tryBody)->catches(
+        return try_(...$tryBody)->catches(
             UserlandError::class,
-            Node::variable('context')->callMethod('addMessage', [
-                Node::property('exceptionFilter')->wrap()->call([
-                    Node::variable('exception')->callMethod('getPrevious'),
+            variable('context')->callMethod('addMessage', [
+                this()->access('exceptionFilter')->wrap()->call([
+                    variable('exception')->callMethod('getPrevious'),
                 ]),
-                Node::value($this->class->type->toString()),
-                Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                Node::value($dumpedType),
-            ])->asExpression(),
-            Node::return(Node::value(null)),
+                value($this->class->type->toString()),
+                className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
+                value($dumpedType),
+            ])->asStatement(),
+            return_(value(null)),
         )->catches(
             Message::class,
-            Node::variable('context')->callMethod('addMessage', [
-                Node::variable('exception'),
-                Node::value($this->class->type->toString()),
-                Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-                Node::value($dumpedType),
-            ])->asExpression(),
-            Node::return(Node::value(null)),
+            variable('context')->callMethod('addMessage', [
+                variable('exception'),
+                value($this->class->type->toString()),
+                className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
+                value($dumpedType),
+            ])->asStatement(),
+            return_(value(null)),
         );
     }
 

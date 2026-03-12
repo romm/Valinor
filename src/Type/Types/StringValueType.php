@@ -14,7 +14,7 @@ use CuyZ\Valinor\Utility\ValueDumper;
 use Stringable;
 
 use function assert;
-use function CuyZ\Valinor\Compiler\value;
+use function CuyZ\Valinor\Compiler\{call, castTo, logicalOr, value};
 use function is_numeric;
 use function is_string;
 use function str_starts_with;
@@ -72,20 +72,20 @@ final class StringValueType implements StringType, FixedType
         return $this->value;
     }
 
-    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    public function compiledCanCast(Node $node): Node
     {
-        return Node::logicalOr(
-            Node::functionCall('is_string', [$node]),
-            Node::functionCall('is_numeric', [$node]),
+        return logicalOr(
+            call('is_string', [$node]),
+            call('is_numeric', [$node]),
             $node->instanceOf(\Stringable::class),
         )->wrap()->and(
-            $node->castTo(NativeStringType::get())->equals(Node::value($this->value))
+            castTo(NativeStringType::get(), $node)->equals(value($this->value))
         );
     }
 
-    public function compiledCast(ComplianceNode $node): ComplianceNode
+    public function compiledCast(Node $node): Node
     {
-        return Node::value($this->value);
+        return value($this->value);
     }
 
     public function value(): string

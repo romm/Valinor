@@ -9,6 +9,8 @@ use CuyZ\Valinor\Cache\CacheEntry;
 use CuyZ\Valinor\Compiler\Compiler;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
+
+use function CuyZ\Valinor\Compiler\{param, shortClosure};
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Compiler\TreeMapperRootNode;
 use CuyZ\Valinor\Mapper\Exception\InvalidMappingTypeSignature;
@@ -82,15 +84,17 @@ final class CacheTreeMapper implements TreeMapper
     {
         $rootNode = new TreeMapperRootNode($type, $this->typeMapperFactory, $this->settings);
 
-        $node = Node::shortClosure($rootNode)
-            ->witParameters(
-                Node::parameterDeclaration('exceptionFilter', 'callable'),
-                Node::parameterDeclaration('customConstructors', 'array'),
-                Node::parameterDeclaration('constructorCallbacks', 'array'),
-                Node::parameterDeclaration('converters', 'array'),
-                Node::parameterDeclaration('keyConverters', 'array'),
-                Node::parameterDeclaration('inferredMapping', 'array'),
-            );
+        $node = shortClosure(
+            return: $rootNode,
+            parameters: [
+                param('exceptionFilter', 'callable'),
+                param('customConstructors', 'array'),
+                param('constructorCallbacks', 'array'),
+                param('converters', 'array'),
+                param('keyConverters', 'array'),
+                param('inferredMapping', 'array'),
+            ],
+        );
 
         return (new Compiler())->compile($node)->code();
     }

@@ -13,7 +13,7 @@ use CuyZ\Valinor\Utility\IsSingleton;
 use Stringable;
 
 use function assert;
-use function CuyZ\Valinor\Compiler\{call, value};
+use function CuyZ\Valinor\Compiler\{call, castTo, logicalOr, value};
 use function is_numeric;
 use function is_string;
 
@@ -73,20 +73,20 @@ final class NonEmptyStringType implements StringType
             ->build();
     }
 
-    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    public function compiledCanCast(Node $node): Node
     {
-        return Node::logicalOr(
-            Node::functionCall('is_string', [$node]),
-            Node::functionCall('is_numeric', [$node]),
+        return logicalOr(
+            call('is_string', [$node]),
+            call('is_numeric', [$node]),
             $node->instanceOf(\Stringable::class),
         )->wrap()->and(
-            $node->castTo($this)->different(Node::value(''))
+            castTo($this, $node)->different(value(''))
         );
     }
 
-    public function compiledCast(ComplianceNode $node): ComplianceNode
+    public function compiledCast(Node $node): Node
     {
-        return $node->castTo($this);
+        return castTo($this, $node);
     }
 
     public function nativeType(): NativeStringType

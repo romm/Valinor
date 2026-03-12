@@ -12,7 +12,7 @@ use CuyZ\Valinor\Type\Type;
 use CuyZ\Valinor\Utility\IsSingleton;
 
 use function assert;
-use function CuyZ\Valinor\Compiler\call;
+use function CuyZ\Valinor\Compiler\{call, castTo, ternary, value};
 use function is_bool;
 
 /** @internal */
@@ -75,23 +75,23 @@ final class NativeBooleanType implements BooleanType
             ->build();
     }
 
-    public function compiledCanCast(ComplianceNode $node): ComplianceNode
+    public function compiledCanCast(Node $node): Node
     {
-        return Node::functionCall('is_bool', [$node])
-            ->or($node->equals(Node::value('1')))
-            ->or($node->equals(Node::value('0')))
-            ->or($node->equals(Node::value(1)))
-            ->or($node->equals(Node::value(0)))
-            ->or($node->equals(Node::value('true')))
-            ->or($node->equals(Node::value('false')));
+        return call('is_bool', [$node])
+            ->or($node->equals(value('1')))
+            ->or($node->equals(value('0')))
+            ->or($node->equals(value(1)))
+            ->or($node->equals(value(0)))
+            ->or($node->equals(value('true')))
+            ->or($node->equals(value('false')));
     }
 
-    public function compiledCast(ComplianceNode $node): ComplianceNode
+    public function compiledCast(Node $node): Node
     {
-        return Node::ternary(
-            $node->equals(Node::value('false')),
-            Node::value(false),
-            $node->castTo($this),
+        return ternary(
+            $node->equals(value('false')),
+            value(false),
+            castTo($this, $node),
         )->wrap();
     }
 

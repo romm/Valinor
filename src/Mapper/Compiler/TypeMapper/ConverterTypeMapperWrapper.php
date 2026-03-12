@@ -7,7 +7,6 @@ namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 use CuyZ\Valinor\Compiler\Library\NewAttributeNode;
 use CuyZ\Valinor\Compiler\Library\TypeAcceptNode;
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
-use CuyZ\Valinor\Compiler\Native\ComplianceNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\AttributeDefinition;
 use CuyZ\Valinor\Library\Settings;
@@ -20,6 +19,7 @@ use CuyZ\Valinor\Type\Type;
 use CuyZ\Valinor\Utility\ValueDumper;
 use Throwable;
 
+use function CuyZ\Valinor\Compiler\{call, className, closure, if_, logicalAnd, negate, param, return_, ternary, this, throw_, try_, value, variable};
 use function implode;
 
 /** @internal */
@@ -35,14 +35,14 @@ final class ConverterTypeMapperWrapper implements TypeMapper
         private array $matchingConverters,
     ) {}
 
-    public function formatValueNode(ComplianceNode $value, ComplianceNode $context): Node
+    public function formatValueNode(Node $value, Node $context): Node
     {
-        return Node::this()->callMethod(
+        return this()->callMethod(
             method: $this->methodName(),
             arguments: [
                 $value,
                 $context,
-                Node::value(0),
+                value(0),
             ],
         );
     }
@@ -56,7 +56,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
         }
 
         // Register placeholder to prevent infinite recursion
-        $class = $class->withMethods(Node::method($methodName));
+        $class = $class->withMethod($methodName);
 
         // Delegate first so the type-specific method is available
         $class = $this->delegate->manipulateMapperClass($class, $settings, $typeMapperFactory);
@@ -68,9 +68,9 @@ final class ConverterTypeMapperWrapper implements TypeMapper
             $paramCount = $converterInfo['paramCount'];
 
             // Condition: $from <= $index && TypeAccept($source, $paramType)
-            $condition = Node::logicalAnd(
-                Node::variable('from')->isLessOrEqualsTo(Node::value($index)),
-                new TypeAcceptNode(Node::variable('source'), $paramType),
+            $condition = logicalAnd(
+                variable('from')->isLessOrEqualsTo(value($index)),
+                new TypeAcceptNode(variable('source'), $paramType),
             );
 
             if ($paramCount === 1) {
@@ -81,22 +81,22 @@ final class ConverterTypeMapperWrapper implements TypeMapper
         }
 
         // Fall through to delegate type mapper
-        $nodes[] = Node::return(
+        $nodes[] = return_(
             $this->delegate->formatValueNode(
-                Node::variable('source'),
-                Node::variable('context'),
+                variable('source'),
+                variable('context'),
             ),
         );
 
-        return $class->withMethods(
-            Node::method($methodName)
-                ->witParameters(
-                    Node::parameterDeclaration('source', 'mixed'),
-                    Node::parameterDeclaration('context', MappingContext::class),
-                    Node::parameterDeclaration('from', 'int'),
-                )
-                ->withReturnType('mixed')
-                ->withBody(...$nodes),
+        return $class->withMethod(
+            name: $methodName,
+            parameters: [
+                param('source', 'mixed'),
+                param('context', MappingContext::class),
+                param('from', 'int'),
+            ],
+            returnType: 'mixed',
+            body: $nodes,
         );
     }
 
@@ -111,32 +111,32 @@ final class ConverterTypeMapperWrapper implements TypeMapper
     private function compileSingleParamConverter(array $converterInfo, Node $condition): Node
     {
         // Single-param converter: terminal, returns result directly
-        $converterCall = $this->compileConverterCall($converterInfo, [Node::variable('source')]);
+        $converterCall = $this->compileConverterCall($converterInfo, [variable('source')]);
 
         $tryBody = [
-            Node::variable('converterResult')->assign($converterCall)->asExpression(),
+            variable('converterResult')->assign($converterCall)->asStatement(),
             // Post-validate: check result matches target type
-            Node::if(
-                condition: Node::negate($this->targetType->compiledAccept(Node::variable('converterResult'))->wrap()),
+            if_(
+                condition: negate($this->targetType->compiledAccept(variable('converterResult'))->wrap()),
                 body: [
-                    Node::variable('context')->callMethod('addMessage', [
+                    variable('context')->callMethod('addMessage', [
                         new MessageNode(InvalidNodeValue::from($this->targetType)),
-                        Node::value($this->targetType->toString()),
-                        Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('converterResult')]),
-                    ])->asExpression(),
-                    Node::return(Node::value(null)),
+                        value($this->targetType->toString()),
+                        className(ValueDumper::class)->callStaticMethod('dump', [variable('converterResult')]),
+                    ])->asStatement(),
+                    return_(value(null)),
                 ],
             ),
-            Node::return(Node::variable('converterResult')),
+            return_(variable('converterResult')),
         ];
 
         $catchBody = $this->catchBody();
 
-        return Node::if(
+        return if_(
             condition: $condition,
-            body: Node::try(...$tryBody)
+            body: try_(...$tryBody)
                 ->catches(Throwable::class, ...$catchBody)
-                ->asExpression(),
+                ->asStatement(),
         );
     }
 
@@ -156,52 +156,55 @@ final class ConverterTypeMapperWrapper implements TypeMapper
         int $index,
     ): Node {
         // Two-param converter: chain with $next closure
-        $nextClosure = Node::closure(
-            Node::variable('newValue')->assign(
-                Node::ternary(
-                    Node::functionCall('func_num_args', [])->isGreaterThan(Node::value(0)),
-                    Node::functionCall('func_get_arg', [Node::value(0)]),
-                    Node::variable('source'),
+        $nextClosure = closure(
+            body: [
+                variable('newValue')->assign(
+                    ternary(
+                        call('func_num_args', [])->isGreaterThan(value(0)),
+                        call('func_get_arg', [value(0)]),
+                        variable('source'),
+                    ),
+                )->asStatement(),
+                return_(
+                    this()->callMethod($methodName, [
+                        variable('newValue'),
+                        variable('context'),
+                        value($index + 1),
+                    ]),
                 ),
-            )->asExpression(),
-            Node::return(
-                Node::this()->callMethod($methodName, [
-                    Node::variable('newValue'),
-                    Node::variable('context'),
-                    Node::value($index + 1),
-                ]),
-            ),
-        )->uses('source', 'context');
+            ],
+            uses: ['source', 'context'],
+        );
 
         $converterCall = $this->compileConverterCall($converterInfo, [
-            Node::variable('source'),
+            variable('source'),
             $nextClosure,
         ]);
 
         $tryBody = [
-            Node::variable('converterResult')->assign($converterCall)->asExpression(),
+            variable('converterResult')->assign($converterCall)->asStatement(),
             // Post-validate
-            Node::if(
-                condition: Node::negate($this->targetType->compiledAccept(Node::variable('converterResult'))->wrap()),
+            if_(
+                condition: negate($this->targetType->compiledAccept(variable('converterResult'))->wrap()),
                 body: [
-                    Node::variable('context')->callMethod('addMessage', [
+                    variable('context')->callMethod('addMessage', [
                         new MessageNode(InvalidNodeValue::from($this->targetType)),
-                        Node::value($this->targetType->toString()),
-                        Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('converterResult')]),
-                    ])->asExpression(),
-                    Node::return(Node::value(null)),
+                        value($this->targetType->toString()),
+                        className(ValueDumper::class)->callStaticMethod('dump', [variable('converterResult')]),
+                    ])->asStatement(),
+                    return_(value(null)),
                 ],
             ),
-            Node::return(Node::variable('converterResult')),
+            return_(variable('converterResult')),
         ];
 
         $catchBody = $this->catchBody();
 
-        return Node::if(
+        return if_(
             condition: $condition,
-            body: Node::try(...$tryBody)
+            body: try_(...$tryBody)
                 ->catches(Throwable::class, ...$catchBody)
-                ->asExpression(),
+                ->asStatement(),
         );
     }
 
@@ -216,22 +219,22 @@ final class ConverterTypeMapperWrapper implements TypeMapper
         return [
             // If context already has errors (from inner mapping failure),
             // just return null - errors are already recorded
-            Node::if(
-                condition: Node::variable('context')->callMethod('containsErrors'),
-                body: Node::return(Node::value(null)),
+            if_(
+                condition: variable('context')->callMethod('containsErrors'),
+                body: return_(value(null)),
             ),
-            Node::if(
-                condition: Node::negate(Node::variable('exception')->instanceOf(Message::class)),
-                body: Node::variable('exception')->assign(
-                    Node::property('exceptionFilter')->wrap()->call([Node::variable('exception')]),
-                )->asExpression(),
+            if_(
+                condition: negate(variable('exception')->instanceOf(Message::class)),
+                body: variable('exception')->assign(
+                    this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
+                )->asStatement(),
             ),
-            Node::variable('context')->callMethod('addMessage', [
-                Node::variable('exception'),
-                Node::value($this->targetType->toString()),
-                Node::class(ValueDumper::class)->callStaticMethod('dump', [Node::variable('source')]),
-            ])->asExpression(),
-            Node::return(Node::value(null)),
+            variable('context')->callMethod('addMessage', [
+                variable('exception'),
+                value($this->targetType->toString()),
+                className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
+            ])->asStatement(),
+            return_(value(null)),
         ];
     }
 
@@ -246,7 +249,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
     private function compileConverterCall(array $converterInfo, array $arguments): Node
     {
         if (isset($converterInfo['converterIndex'])) {
-            return Node::this()->access('converters')->key(Node::value($converterInfo['converterIndex']))
+            return this()->access('converters')->key(value($converterInfo['converterIndex']))
                 ->call($arguments);
         }
 
