@@ -10,7 +10,7 @@ use CuyZ\Valinor\Definition\ClassDefinition;
 
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
+use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Object\Exception\CannotFindObjectBuilder;
 use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;
@@ -24,14 +24,13 @@ use CuyZ\Valinor\Type\Types\ShapedArrayElement;
 use CuyZ\Valinor\Type\Types\ShapedArrayType;
 use CuyZ\Valinor\Type\Types\StringValueType;
 use CuyZ\Valinor\Type\Types\UnionType;
-use CuyZ\Valinor\Utility\ValueDumper;
 
 use function array_filter;
 
 use function array_merge;
 
 use function count;
-use function CuyZ\Valinor\Compiler\{array_, call, className, if_, negate, param, return_, this, try_, value, variable};
+use function CuyZ\Valinor\Compiler\{array_, call, dumpValue, if_, negate, param, return_, this, try_, value, variable};
 final class ObjectTypeMapper implements TypeMapper
 {
     use TypeMapperMethodName;
@@ -120,12 +119,7 @@ final class ObjectTypeMapper implements TypeMapper
 
         if ($hasMultipleBuilders) {
             // All builders failed: report error
-            $nodes[] = variable('context')->callMethod('addMessage', [
-                new MessageNode(new CannotFindObjectBuilder()),
-                value($this->class->type->toString()),
-                className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
-                value($dumpedType),
-            ])->asStatement();
+            $nodes[] = new AddMessageNode(variable('context'), new CannotFindObjectBuilder(), $this->class->type->toString(), dumpValue(variable('source')), $dumpedType);
             $nodes[] = return_(value(null));
         }
 
@@ -490,23 +484,23 @@ final class ObjectTypeMapper implements TypeMapper
     {
         return try_(...$tryBody)->catches(
             UserlandError::class,
-            variable('context')->callMethod('addMessage', [
-                this()->access('exceptionFilter')->wrap()->call([
-                    variable('exception')->callMethod('getPrevious'),
-                ]),
-                value($this->class->type->toString()),
-                className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
-                value($dumpedType),
-            ])->asStatement(),
+            new AddMessageNode(
+                variable('context'),
+                this()->access('exceptionFilter')->wrap()->call([variable('exception')->callMethod('getPrevious')]),
+                $this->class->type->toString(),
+                dumpValue(variable('source')),
+                $dumpedType,
+            ),
             return_(value(null)),
         )->catches(
             Message::class,
-            variable('context')->callMethod('addMessage', [
+            new AddMessageNode(
+                variable('context'),
                 variable('exception'),
-                value($this->class->type->toString()),
-                className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
-                value($dumpedType),
-            ])->asStatement(),
+                $this->class->type->toString(),
+                dumpValue(variable('source')),
+                $dumpedType,
+            ),
             return_(value(null)),
         );
     }

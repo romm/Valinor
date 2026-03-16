@@ -6,12 +6,11 @@ namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
+use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceMustBeIterable;
 use CuyZ\Valinor\Type\Type;
-use CuyZ\Valinor\Utility\ValueDumper;
 
-use function CuyZ\Valinor\Compiler\{call, className, if_, negate, return_, value, variable};
+use function CuyZ\Valinor\Compiler\{call, dumpValue, if_, negate, return_, value, variable};
 
 /**
  * @internal
@@ -35,41 +34,19 @@ final class IterableValidationNodes
                 body: variable('source')->assign(value([]))->asStatement(),
             );
         } else {
-            // Null check with "missing" error body
-            $messageArgs = [
-                new MessageNode(new SourceMustBeIterable(null)),
-                value($type->toString()),
-                value('*missing*'),
-            ];
-
-            if ($dumpedType !== null) {
-                $messageArgs[] = value($dumpedType);
-            }
-
             $nodes[] = if_(
                 condition: variable('source')->equals(value(null)),
                 body: [
-                    variable('context')->callMethod('addMessage', $messageArgs)->asStatement(),
+                    new AddMessageNode(variable('context'), new SourceMustBeIterable(null), $type->toString(), value('*missing*'), $dumpedType),
                     return_(value(null)),
                 ],
             );
         }
 
-        // Non-iterable check with value error body (source is non-null here)
-        $messageArgs = [
-            new MessageNode(new SourceMustBeIterable('value')),
-            value($type->toString()),
-            className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
-        ];
-
-        if ($dumpedType !== null) {
-            $messageArgs[] = value($dumpedType);
-        }
-
         $nodes[] = if_(
             condition: negate(call('is_iterable', [variable('source')])),
             body: [
-                variable('context')->callMethod('addMessage', $messageArgs)->asStatement(),
+                new AddMessageNode(variable('context'), new SourceMustBeIterable('value'), $type->toString(), dumpValue(variable('source')), $dumpedType),
                 return_(value(null)),
             ],
         );

@@ -9,7 +9,7 @@ use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
 
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
+use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\InvalidIterableKeyType;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceIsEmptyList;
@@ -62,11 +62,7 @@ final class ListTypeMapper implements TypeMapper
             $nodes[] = if_(
                 condition: variable('source')->equals(value([])),
                 body: [
-                    variable('context')->callMethod('addMessage', [
-                        new MessageNode(new SourceIsEmptyList()),
-                        value($this->type->toString()),
-                        value('[]'),
-                    ])->asStatement(),
+                    new AddMessageNode(variable('context'), new SourceIsEmptyList(), $this->type->toString(), value('[]')),
                     return_(value(null)),
                 ],
             );

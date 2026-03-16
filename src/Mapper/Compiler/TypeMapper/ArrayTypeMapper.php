@@ -8,7 +8,7 @@ use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
+use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\InvalidIterableKeyType;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceIsEmptyArray;
@@ -63,11 +63,7 @@ final class ArrayTypeMapper implements TypeMapper
             $nodes[] = if_(
                 condition: variable('source')->equals(value([])),
                 body: [
-                    variable('context')->callMethod('addMessage', [
-                        new MessageNode(new SourceIsEmptyArray()),
-                        value($this->type->toString()),
-                        value('[]'),
-                    ])->asStatement(),
+                    new AddMessageNode(variable('context'), new SourceIsEmptyArray(), $this->type->toString(), value('[]')),
                     return_(value(null)),
                 ],
             );

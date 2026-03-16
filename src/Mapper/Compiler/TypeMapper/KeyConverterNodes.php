@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
 use CuyZ\Valinor\Compiler\Node;
+use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\KeysCollision;
 use CuyZ\Valinor\Mapper\Tree\Message\Message;
@@ -52,13 +53,12 @@ final class KeyConverterNodes
         $tryBody = array_merge($converterNodes, [
             if_(
                 condition: call('array_key_exists', [$keyVarNode, variable('nameMap')]),
-                body: variable('context')->callMethod('sub', [
-                    call('strval', [variable('origKey')]),
-                ])->callMethod('addMessage', [
+                body: new AddMessageNode(
+                    variable('context')->callMethod('sub', [call('strval', [variable('origKey')])]),
                     newClass(KeysCollision::class, variable('nameMap')->key($keyVarNode), $keyVarNode),
-                    value('?'),
+                    '?',
                     call('strval', [variable('origKey')]),
-                ])->asStatement(),
+                ),
             )->else([
                 variable('convertedSource')->key($keyVarNode)->assign(
                     variable('origVal'),
@@ -82,13 +82,12 @@ final class KeyConverterNodes
                         this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
                     )->asStatement(),
                 ),
-                variable('context')->callMethod('sub', [
-                    call('strval', [variable('origKey')]),
-                ])->callMethod('addMessage', [
+                new AddMessageNode(
+                    variable('context')->callMethod('sub', [call('strval', [variable('origKey')])]),
                     variable('exception'),
-                    value('?'),
+                    '?',
                     call('strval', [variable('origKey')]),
-                ])->asStatement(),
+                ),
             ),
         ];
 

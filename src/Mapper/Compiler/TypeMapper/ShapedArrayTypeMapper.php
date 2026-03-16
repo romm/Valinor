@@ -8,7 +8,7 @@ use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
+use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotMapToPermissiveType;
 use CuyZ\Valinor\Mapper\Tree\Exception\MissingNodeValue;
@@ -17,12 +17,11 @@ use CuyZ\Valinor\Type\Types\MixedType;
 use CuyZ\Valinor\Type\Types\ShapedArrayType;
 use CuyZ\Valinor\Type\Types\UndefinedObjectType;
 use CuyZ\Valinor\Type\VacantType;
-use CuyZ\Valinor\Utility\ValueDumper;
 use Exception;
 
 use function array_flip;
 use function array_keys;
-use function CuyZ\Valinor\Compiler\{call, className, forEach_, if_, negate, newClass, param, return_, this, throw_, value, variable};
+use function CuyZ\Valinor\Compiler\{call, dumpValue, forEach_, if_, negate, newClass, param, return_, this, throw_, value, variable};
 
 /** @internal */
 final class ShapedArrayTypeMapper implements TypeMapper
@@ -131,12 +130,13 @@ final class ShapedArrayTypeMapper implements TypeMapper
                 } else {
                     // When undefined values are NOT allowed, add a proper missing value error
                     $dumpedElementType = $typeMapperFactory->dumpType($element->type());
-                    $elseBody = variable('context')->callMethod('sub', [value($keyStr)])->callMethod('addMessage', [
-                        new MessageNode(MissingNodeValue::from($element->type())),
-                        value($element->type()->toString()),
+                    $elseBody = new AddMessageNode(
+                        variable('context')->callMethod('sub', [value($keyStr)]),
+                        MissingNodeValue::from($element->type()),
+                        $element->type()->toString(),
                         value('*missing*'),
-                        value($dumpedElementType),
-                    ])->asStatement();
+                        $dumpedElementType,
+                    );
                 }
 
                 $nodes[] = if_(
@@ -237,14 +237,13 @@ final class ShapedArrayTypeMapper implements TypeMapper
                     condition: negate(variable('context')->callMethod('isAllowedSuperfluousKey', [
                         call('strval', [variable('extraKey')]),
                     ])),
-                    body: variable('context')->callMethod('sub', [
-                        call('strval', [variable('extraKey')]),
-                    ])->callMethod('addMessage', [
-                        new MessageNode(new UnexpectedKeyInSource()),
-                        value($this->type->toString()),
-                        className(ValueDumper::class)->callStaticMethod('dump', [variable('extraValue')]),
-                        value($dumpedType),
-                    ])->asStatement(),
+                    body: new AddMessageNode(
+                        variable('context')->callMethod('sub', [call('strval', [variable('extraKey')])]),
+                        new UnexpectedKeyInSource(),
+                        $this->type->toString(),
+                        dumpValue(variable('extraValue')),
+                        $dumpedType,
+                    ),
                 ),
             );
         }

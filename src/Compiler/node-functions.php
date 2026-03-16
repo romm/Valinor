@@ -30,6 +30,7 @@ use CuyZ\Valinor\Compiler\Native\ValueNode;
 use CuyZ\Valinor\Compiler\Native\VariableNode;
 use CuyZ\Valinor\Compiler\Native\YieldNode;
 use CuyZ\Valinor\Type\Type;
+use CuyZ\Valinor\Utility\ValueDumper;
 
 /**
  * @param array<Node> $assignments
@@ -211,6 +212,11 @@ function try_(Node ...$body): TryNode
 function value(array|bool|float|int|string|null $value): Node
 {
     return new ValueNode($value);
+}
+
+function dumpValue(Node $node): Node
+{
+    return className(ValueDumper::class)->callStaticMethod('dump', [$node]);
 }
 
 function variable(string $name): Node

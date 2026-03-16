@@ -10,15 +10,14 @@ use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\AttributeDefinition;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
+use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\InvalidNodeValue;
 use CuyZ\Valinor\Mapper\Tree\Message\Message;
 use CuyZ\Valinor\Type\Type;
-use CuyZ\Valinor\Utility\ValueDumper;
 use Throwable;
 
-use function CuyZ\Valinor\Compiler\{call, className, closure, if_, logicalAnd, negate, param, return_, ternary, this, try_, value, variable};
+use function CuyZ\Valinor\Compiler\{call, closure, dumpValue, if_, logicalAnd, negate, param, return_, ternary, this, try_, value, variable};
 use function implode;
 /** @internal */
 final class ConverterTypeMapperWrapper implements TypeMapper
@@ -127,11 +126,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
             if_(
                 condition: negate($this->targetType->compiledAccept(variable('converterResult'))->wrap()),
                 body: [
-                    variable('context')->callMethod('addMessage', [
-                        new MessageNode(InvalidNodeValue::from($this->targetType)),
-                        value($this->targetType->toString()),
-                        className(ValueDumper::class)->callStaticMethod('dump', [variable('converterResult')]),
-                    ])->asStatement(),
+                    new AddMessageNode(variable('context'), InvalidNodeValue::from($this->targetType), $this->targetType->toString(), dumpValue(variable('converterResult'))),
                     return_(value(null)),
                 ],
             ),
@@ -195,11 +190,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
             if_(
                 condition: negate($this->targetType->compiledAccept(variable('converterResult'))->wrap()),
                 body: [
-                    variable('context')->callMethod('addMessage', [
-                        new MessageNode(InvalidNodeValue::from($this->targetType)),
-                        value($this->targetType->toString()),
-                        className(ValueDumper::class)->callStaticMethod('dump', [variable('converterResult')]),
-                    ])->asStatement(),
+                    new AddMessageNode(variable('context'), InvalidNodeValue::from($this->targetType), $this->targetType->toString(), dumpValue(variable('converterResult'))),
                     return_(value(null)),
                 ],
             ),
@@ -237,11 +228,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
                     this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
                 )->asStatement(),
             ),
-            variable('context')->callMethod('addMessage', [
-                variable('exception'),
-                value($this->targetType->toString()),
-                className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
-            ])->asStatement(),
+            new AddMessageNode(variable('context'), variable('exception'), $this->targetType->toString(), dumpValue(variable('source'))),
             return_(value(null)),
         ];
     }

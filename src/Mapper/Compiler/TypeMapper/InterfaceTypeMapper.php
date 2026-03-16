@@ -9,18 +9,17 @@ use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\FunctionDefinition;
 
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
+use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Object\Arguments;
 use CuyZ\Valinor\Mapper\Tree\Exception\ObjectImplementationNotRegistered;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceMustBeIterable;
 use CuyZ\Valinor\Type\ObjectType;
-use CuyZ\Valinor\Utility\ValueDumper;
 use Exception;
 
 use function array_keys;
 use function count;
-use function CuyZ\Valinor\Compiler\{call, className, if_, negate, newClass, param, return_, this, throw_, try_, value, variable};
+use function CuyZ\Valinor\Compiler\{call, dumpValue, if_, negate, newClass, param, return_, this, throw_, try_, value, variable};
 /** @internal */
 final class InterfaceTypeMapper implements TypeMapper
 {
@@ -145,11 +144,12 @@ final class InterfaceTypeMapper implements TypeMapper
                 )->asStatement(),
             )->catches(
                 Exception::class,
-                variable('context')->callMethod('addMessage', [
+                new AddMessageNode(
+                    variable('context'),
                     this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
-                    value($this->type->toString()),
-                    className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
-                ])->asStatement(),
+                    $this->type->toString(),
+                    dumpValue(variable('source')),
+                ),
                 return_(value(null)),
             );
         } elseif ($argCount === 1) {
@@ -219,11 +219,12 @@ final class InterfaceTypeMapper implements TypeMapper
                 )->asStatement(),
             )->catches(
                 Exception::class,
-                variable('context')->callMethod('addMessage', [
+                new AddMessageNode(
+                    variable('context'),
                     this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
-                    value($this->type->toString()),
-                    className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
-                ])->asStatement(),
+                    $this->type->toString(),
+                    dumpValue(variable('source')),
+                ),
                 return_(value(null)),
             );
         } else {
@@ -251,12 +252,7 @@ final class InterfaceTypeMapper implements TypeMapper
             $nodes[] = if_(
                 condition: negate(call('is_array', [variable('source')])),
                 body: [
-                    variable('context')->callMethod('addMessage', [
-                        new MessageNode(new SourceMustBeIterable('value')),
-                        value($this->type->toString()),
-                        className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
-                        value($dumpedType),
-                    ])->asStatement(),
+                    new AddMessageNode(variable('context'), new SourceMustBeIterable('value'), $this->type->toString(), dumpValue(variable('source')), $dumpedType),
                     return_(value(null)),
                 ],
             );
@@ -307,11 +303,12 @@ final class InterfaceTypeMapper implements TypeMapper
                 )->asStatement(),
             )->catches(
                 Exception::class,
-                variable('context')->callMethod('addMessage', [
+                new AddMessageNode(
+                    variable('context'),
                     this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
-                    value($this->type->toString()),
-                    className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
-                ])->asStatement(),
+                    $this->type->toString(),
+                    dumpValue(variable('source')),
+                ),
                 return_(value(null)),
             );
         }

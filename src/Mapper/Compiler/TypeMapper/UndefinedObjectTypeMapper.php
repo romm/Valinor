@@ -7,13 +7,12 @@ namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
+use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotMapToPermissiveType;
 use CuyZ\Valinor\Mapper\Tree\Exception\InvalidNodeValue;
-use CuyZ\Valinor\Utility\ValueDumper;
 
-use function CuyZ\Valinor\Compiler\{call, className, if_, value};
+use function CuyZ\Valinor\Compiler\{call, dumpValue, if_, value};
 
 /** @internal */
 final class UndefinedObjectTypeMapper implements TypeMapper
@@ -29,11 +28,7 @@ final class UndefinedObjectTypeMapper implements TypeMapper
                 condition: call('is_object', [$value]),
                 body: $target->assign($value)->asStatement(),
             )->else([
-                $context->callMethod('addMessage', [
-                    new MessageNode(new InvalidNodeValue()),
-                    value('object'),
-                    className(ValueDumper::class)->callStaticMethod('dump', [$value]),
-                ])->asStatement(),
+                new AddMessageNode($context, new InvalidNodeValue(), 'object', dumpValue($value)),
             ]),
         ];
     }

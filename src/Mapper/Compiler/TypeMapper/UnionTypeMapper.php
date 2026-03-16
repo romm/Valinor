@@ -7,9 +7,11 @@ namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
+use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Compiler\UnionResolver;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotResolveObjectType;
+use CuyZ\Valinor\Mapper\Tree\Exception\CannotResolveTypeFromUnion;
 use CuyZ\Valinor\Type\ClassType;
 use CuyZ\Valinor\Type\ScalarType;
 use CuyZ\Valinor\Type\Type;
@@ -23,7 +25,7 @@ use Throwable;
 
 use function array_map;
 use function count;
-use function CuyZ\Valinor\Compiler\{array_, className, if_, negate, newClass, param, return_, this, value, variable};
+use function CuyZ\Valinor\Compiler\{array_, dumpValue, if_, negate, newClass, param, return_, this, value, variable};
 use function implode;
 /** @internal */
 final class UnionTypeMapper implements TypeMapper
@@ -131,12 +133,13 @@ final class UnionTypeMapper implements TypeMapper
                 $nodes[] = return_(variable('subResult'));
             } else {
                 // Equal priority: show union-level error
-                $nodes[] = variable('context')->callMethod('addMessage', [
-                    newClass(\CuyZ\Valinor\Mapper\Tree\Exception\CannotResolveTypeFromUnion::class, variable('source')),
-                    value($this->type->toString()),
-                    className(\CuyZ\Valinor\Utility\ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
-                    value($expectedSignature),
-                ])->asStatement();
+                $nodes[] = new AddMessageNode(
+                    variable('context'),
+                    newClass(CannotResolveTypeFromUnion::class, variable('source')),
+                    $this->type->toString(),
+                    dumpValue(variable('source')),
+                    $expectedSignature,
+                );
                 $nodes[] = return_(value(null));
             }
         } else {

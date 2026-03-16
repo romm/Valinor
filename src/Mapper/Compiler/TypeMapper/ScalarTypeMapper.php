@@ -7,13 +7,12 @@ namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
+use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Type\FloatType;
 use CuyZ\Valinor\Type\ScalarType;
-use CuyZ\Valinor\Utility\ValueDumper;
 
-use function CuyZ\Valinor\Compiler\{call, castTo, className, if_, logicalOr, value};
+use function CuyZ\Valinor\Compiler\{call, castTo, dumpValue, if_, logicalOr, value};
 
 final class ScalarTypeMapper implements TypeMapper
 {
@@ -33,11 +32,7 @@ final class ScalarTypeMapper implements TypeMapper
             : $target->assign($value)->asStatement();
 
         $errorNodes = [
-            $context->callMethod('addMessage', [
-                new MessageNode($this->type->errorMessage()),
-                value($this->type->toString()),
-                className(ValueDumper::class)->callStaticMethod('dump', [$value]),
-            ])->asStatement(),
+            new AddMessageNode($context, $this->type->errorMessage(), $this->type->toString(), dumpValue($value)),
         ];
 
         if (! $this->settings->allowScalarValueCasting) {
