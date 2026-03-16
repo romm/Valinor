@@ -82,7 +82,7 @@ final class CacheTreeMapper implements TreeMapper
 
     private function compileFor(Type $type): string
     {
-        $rootNode = new TreeMapperRootNode($type, $this->typeMapperFactory, $this->settings);
+        $rootNode = new TreeMapperRootNode($type, $this->typeMapperFactory);
 
         $node = shortClosure(
             return: $rootNode,

@@ -13,14 +13,18 @@ use CuyZ\Valinor\Mapper\Tree\Exception\CannotMapToPermissiveType;
 /** @internal */
 final class MixedTypeMapper implements TypeMapper
 {
+    public function __construct(
+        private Settings $settings,
+    ) {}
+
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
     {
         return [$target->assign($value)->asStatement()];
     }
 
-    public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
+    public function manipulateMapperClass(AnonymousClassNode $class, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
-        if (! $settings->allowPermissiveTypes) {
+        if (! $this->settings->allowPermissiveTypes) {
             throw new CannotMapToPermissiveType('mixed');
         }
 

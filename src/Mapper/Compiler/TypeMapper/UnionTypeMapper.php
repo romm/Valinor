@@ -6,7 +6,6 @@ namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
-use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Compiler\UnionResolver;
@@ -49,7 +48,7 @@ final class UnionTypeMapper implements TypeMapper
         ];
     }
 
-    public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
+    public function manipulateMapperClass(AnonymousClassNode $class, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
         $methodName = $this->methodName();
 
@@ -93,7 +92,7 @@ final class UnionTypeMapper implements TypeMapper
 
             try {
                 $subMapper = $typeMapperFactory->for($subType);
-                $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+                $class = $subMapper->manipulateMapperClass($class, $typeMapperFactory);
             } catch (CannotResolveObjectType) {
                 return $this->buildUnresolvableMethod($class, $methodName, $nodes);
             }
@@ -116,7 +115,7 @@ final class UnionTypeMapper implements TypeMapper
 
             try {
                 $subMapper = $typeMapperFactory->for($subType);
-                $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+                $class = $subMapper->manipulateMapperClass($class, $typeMapperFactory);
             } catch (CannotResolveObjectType) {
                 return $this->buildUnresolvableMethod($class, $methodName, $nodes);
             }
@@ -178,7 +177,7 @@ final class UnionTypeMapper implements TypeMapper
                         continue;
                     }
 
-                    $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+                    $class = $subMapper->manipulateMapperClass($class, $typeMapperFactory);
                 } catch (CannotResolveObjectType) {
                     // Interface with no implementation — skip this type
                     continue;

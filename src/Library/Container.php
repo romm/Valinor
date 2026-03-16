@@ -112,6 +112,7 @@ final class Container
                 $this->get(TypeDumper::class),
                 $this->get(ConverterAnalyzer::class),
                 $this->get(KeyConverterHandler::class),
+                $settings,
             ),
 
             ConverterAnalyzer::class => fn() => new ConverterAnalyzer(

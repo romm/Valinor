@@ -20,52 +20,57 @@ use function CuyZ\Valinor\Compiler\{call, castTo, className, if_, logicalOr, neg
 final class ScalarTypeMapper implements TypeMapper
 {
     use TypeMapperMethodName;
-    private bool $allowScalarValueCasting = false;
+    private bool $allowScalarValueCasting;
 
     public function __construct(
         private ScalarType $type,
-    ) {}
+        private Settings $settings,
+    ) {
+        $this->allowScalarValueCasting = $settings->allowScalarValueCasting;
+    }
 
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
     {
-        if (! $this->allowScalarValueCasting) {
-            // Inline: type check directly, avoiding method call + eager sub-context allocation
-            $acceptCondition = $this->type instanceof FloatType
-                ? logicalOr($this->type->compiledAccept($value), call('is_int', [$value]))
-                : $this->type->compiledAccept($value);
-
-            $assignNode = $this->type instanceof FloatType
-                ? $target->assign(castTo($this->type, $value))->asStatement()
-                : $target->assign($value)->asStatement();
-
+        if ($this->allowScalarValueCasting) {
+            // Casting enabled: fall back to method call
             return [
-                if_(
-                    condition: $acceptCondition,
-                    body: $assignNode,
-                )->else([
-                    $context->callMethod('addMessage', [
-                        new MessageNode($this->type->errorMessage()),
-                        value($this->type->toString()),
-                        className(ValueDumper::class)->callStaticMethod('dump', [$value]),
-                    ])->asStatement(),
-                ]),
+                $target->assign(
+                    this()->callMethod(
+                        method: $this->methodName(),
+                        arguments: [$value, $context],
+                    ),
+                )->asStatement(),
             ];
         }
 
-        // Casting enabled: fall back to method call
+        // Inline: type check directly, avoiding method call + eager sub-context allocation
+        $acceptCondition = $this->type instanceof FloatType
+            ? logicalOr($this->type->compiledAccept($value), call('is_int', [$value]))
+            : $this->type->compiledAccept($value);
+
+        $assignNode = $this->type instanceof FloatType
+            ? $target->assign(castTo($this->type, $value))->asStatement()
+            : $target->assign($value)->asStatement();
+
         return [
-            $target->assign(
-                this()->callMethod(
-                    method: $this->methodName(),
-                    arguments: [$value, $context],
-                ),
-            )->asStatement(),
+            if_(
+                condition: $acceptCondition,
+                body: $assignNode,
+            )->else([
+                $context->callMethod('addMessage', [
+                    new MessageNode($this->type->errorMessage()),
+                    value($this->type->toString()),
+                    className(ValueDumper::class)->callStaticMethod('dump', [$value]),
+                ])->asStatement(),
+            ]),
         ];
     }
 
-    public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
+    public function manipulateMapperClass(AnonymousClassNode $class, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
-        $this->allowScalarValueCasting = $settings->allowScalarValueCasting;
+        if (! $this->settings->allowScalarValueCasting) {
+            return $class;
+        }
 
         $methodName = $this->methodName();
 
@@ -85,46 +90,25 @@ final class ScalarTypeMapper implements TypeMapper
             );
         }
 
-        if (! $settings->allowScalarValueCasting) {
-            $nodes = [
-                ...$nodes,
-                if_(
-                    condition: negate($this->type->compiledAccept(variable('source'))->wrap()),
-                    body: [
-                        variable('context')->callMethod(
-                            method: 'addMessage',
-                            arguments: [
-                                new MessageNode($this->type->errorMessage()),
-                                value($this->type->toString()),
-                                className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
-                            ]
-                        )->asStatement(),
-                        return_(value(null)),
-                    ],
+        $nodes = [
+            ...$nodes,
+            if_(
+                condition: $this->type->compiledAccept(variable('source')),
+                body: return_(variable('source')),
+            ),
+            if_(
+                condition: $this->type->compiledCanCast(variable('source')),
+                body: return_(
+                    $this->type->compiledCast(variable('source')),
                 ),
-                return_(variable('source')),
-            ];
-        } else {
-            $nodes = [
-                ...$nodes,
-                if_(
-                    condition: $this->type->compiledAccept(variable('source')),
-                    body: return_(variable('source')),
-                ),
-                if_(
-                    condition: $this->type->compiledCanCast(variable('source')),
-                    body: return_(
-                        $this->type->compiledCast(variable('source')),
-                    ),
-                ),
-                variable('context')->callMethod('addMessage', [
-                    new MessageNode($this->type->errorMessage()),
-                    value($this->type->toString()),
-                    className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
-                ])->asStatement(),
-                return_(value(null)),
-            ];
-        }
+            ),
+            variable('context')->callMethod('addMessage', [
+                new MessageNode($this->type->errorMessage()),
+                value($this->type->toString()),
+                className(ValueDumper::class)->callStaticMethod('dump', [variable('source')]),
+            ])->asStatement(),
+            return_(value(null)),
+        ];
 
         return $class->withMethod(
             name: $methodName,

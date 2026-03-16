@@ -7,7 +7,6 @@ namespace CuyZ\Valinor\Mapper\Compiler;
 use CuyZ\Valinor\Compiler\Compiler;
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
-use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\TypeMapper;
 use CuyZ\Valinor\Mapper\TreeMapper;
 use CuyZ\Valinor\Mapper\TypeTreeMapperError;
@@ -20,7 +19,6 @@ final class TreeMapperRootNode extends Node
     public function __construct(
         private Type $type,
         private TypeMapperFactory $typeMapperFactory,
-        private Settings $settings,
     ) {}
 
     public function compile(Compiler $compiler): Compiler
@@ -32,7 +30,7 @@ final class TreeMapperRootNode extends Node
 
         // Add type-specific methods — this also sets runtime state like
         // ScalarTypeMapper::$allowScalarValueCasting, so it MUST run before buildMappingNodes.
-        $classNode = $typeMapper->manipulateMapperClass($classNode, $this->settings, $this->typeMapperFactory);
+        $classNode = $typeMapper->manipulateMapperClass($classNode, $this->typeMapperFactory);
 
         // Now add the map method, which calls buildMappingNodes (which may inline)
         $classNode = $this->addMapMethod($classNode, $typeMapper);

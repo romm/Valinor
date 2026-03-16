@@ -19,6 +19,10 @@ use function CuyZ\Valinor\Compiler\{call, className, if_, negate, param, return_
 /** @internal */
 final class UndefinedObjectTypeMapper implements TypeMapper
 {
+    public function __construct(
+        private Settings $settings,
+    ) {}
+
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
     {
         return [
@@ -31,9 +35,9 @@ final class UndefinedObjectTypeMapper implements TypeMapper
         ];
     }
 
-    public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
+    public function manipulateMapperClass(AnonymousClassNode $class, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
-        if (! $settings->allowPermissiveTypes) {
+        if (! $this->settings->allowPermissiveTypes) {
             throw new CannotMapToPermissiveType('object');
         }
 

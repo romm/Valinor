@@ -30,6 +30,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
     use TypeMapperMethodName;
     public function __construct(
         private ShapedArrayType $type,
+        private Settings $settings,
         private bool $applyKeyConverters = true,
     ) {}
 
@@ -48,7 +49,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
         ];
     }
 
-    public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
+    public function manipulateMapperClass(AnonymousClassNode $class, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
         $methodName = $this->methodName();
 
@@ -62,7 +63,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
         // Compute effective type signature for error messages
         $dumpedType = $typeMapperFactory->dumpType($this->type);
 
-        $nodes = IterableValidationNodes::build($settings, $this->type, $dumpedType);
+        $nodes = IterableValidationNodes::build($this->settings, $this->type, $dumpedType);
 
         // Convert to array if needed
         $nodes[] = if_(
@@ -92,7 +93,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
             }
 
             try {
-                $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+                $class = $subMapper->manipulateMapperClass($class, $typeMapperFactory);
             } catch (CannotMapToPermissiveType) {
                 throw new CannotMapToPermissiveType($element->type()->toString(), (string)$key);
             }
@@ -122,7 +123,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
                     $elementTarget,
                 );
 
-                if ($settings->allowUndefinedValues) {
+                if ($this->settings->allowUndefinedValues) {
                     // When undefined values are allowed, pass null through sub-mapper
                     // (it handles null→default conversion, e.g. null→[] for lists)
                     $elseBody = $subMapper->buildMappingNodes(
@@ -172,7 +173,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
                 }
             }
 
-            if ($isPermissive && ! $settings->allowPermissiveTypes) {
+            if ($isPermissive && ! $this->settings->allowPermissiveTypes) {
                 // Generate runtime code that throws when extra keys are encountered
                 $definedKeys = array_keys($this->type->elements);
                 $nodes[] = variable('remaining')->assign(
@@ -206,7 +207,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
 
                 // Map remaining key-value pairs through the unsealed type's sub-type
                 $valueMapper = $typeMapperFactory->for($unsealedType->subType());
-                $class = $valueMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+                $class = $valueMapper->manipulateMapperClass($class, $typeMapperFactory);
 
                 $nodes[] = forEach_(
                     variable('remaining'),
@@ -221,7 +222,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
                     ),
                 );
             }
-        } elseif (! $settings->allowSuperfluousKeys) {
+        } elseif (! $this->settings->allowSuperfluousKeys) {
             // Sealed array: detect extra keys
             $definedKeys = array_keys($this->type->elements);
             $nodes[] = variable('extraKeys')->assign(

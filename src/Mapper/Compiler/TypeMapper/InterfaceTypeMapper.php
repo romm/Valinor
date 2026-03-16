@@ -8,7 +8,6 @@ use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\FunctionDefinition;
 
-use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
@@ -51,7 +50,7 @@ final class InterfaceTypeMapper implements TypeMapper
         ];
     }
 
-    public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
+    public function manipulateMapperClass(AnonymousClassNode $class, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
         $methodName = $this->methodName();
 
@@ -69,14 +68,14 @@ final class InterfaceTypeMapper implements TypeMapper
         $implMappers = [];
         foreach ($this->implementations as $className => $implType) {
             $implMapper = $typeMapperFactory->for($implType, applyConverters: false);
-            $class = $implMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+            $class = $implMapper->manipulateMapperClass($class, $typeMapperFactory);
             $implMappers[$className] = $implMapper;
         }
 
         // Compile infer argument mapping and invocation
         $argCount = count($this->inferArguments);
         $className = $this->type->className();
-        $this->compileInferArgMapping($argCount, $className, $class, $settings, $typeMapperFactory, $nodes);
+        $this->compileInferArgMapping($argCount, $className, $class, $typeMapperFactory, $nodes);
 
         // Allow infer function argument names as superfluous keys in implementation mapping
         if ($argCount > 0) {
@@ -133,7 +132,6 @@ final class InterfaceTypeMapper implements TypeMapper
         int $argCount,
         string $interfaceClassName,
         AnonymousClassNode &$class,
-        Settings $settings,
         TypeMapperFactory $typeMapperFactory,
         array &$nodes,
     ): void {
@@ -160,7 +158,7 @@ final class InterfaceTypeMapper implements TypeMapper
             $arg = $this->inferArguments->at(0);
             $argName = $arg->name();
             $argMapper = $typeMapperFactory->for($arg->type());
-            $class = $argMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+            $class = $argMapper->manipulateMapperClass($class, $typeMapperFactory);
 
             // Convert iterable to array if needed
             $nodes[] = if_(
@@ -235,7 +233,7 @@ final class InterfaceTypeMapper implements TypeMapper
             $argMappers = [];
             foreach ($this->inferArguments as $arg) {
                 $argMapper = $typeMapperFactory->for($arg->type());
-                $class = $argMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+                $class = $argMapper->manipulateMapperClass($class, $typeMapperFactory);
                 $argMappers[$arg->name()] = $argMapper;
             }
 

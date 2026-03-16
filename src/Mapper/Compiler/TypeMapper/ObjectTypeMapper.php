@@ -40,6 +40,7 @@ final class ObjectTypeMapper implements TypeMapper
         private ClassDefinition $class,
         /** @var non-empty-list<ObjectBuilder> */
         private array $builders,
+        private Settings $settings,
     ) {}
 
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
@@ -57,7 +58,7 @@ final class ObjectTypeMapper implements TypeMapper
         ];
     }
 
-    public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
+    public function manipulateMapperClass(AnonymousClassNode $class, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
         $methodName = $this->methodName();
 
@@ -79,7 +80,7 @@ final class ObjectTypeMapper implements TypeMapper
             ),
         ];
 
-        if ($settings->allowUndefinedValues) {
+        if ($this->settings->allowUndefinedValues) {
             $nodes[] = if_(
                 condition: variable('source')->equals(value(null)),
                 body: variable('source')->assign(value([]))->asStatement(),
@@ -109,11 +110,11 @@ final class ObjectTypeMapper implements TypeMapper
 
             if ($hasMultipleBuilders) {
                 // Multi-builder: use isolated context per builder, skip on failure
-                $class = $this->compileBuilderWithIsolation($class, $settings, $typeMapperFactory, $builder, $arguments, $argCount, $nodes, $dumpedType);
+                $class = $this->compileBuilderWithIsolation($class, $typeMapperFactory, $builder, $arguments, $argCount, $nodes, $dumpedType);
             } elseif ($argCount === 1) {
-                $this->compileSingleArgBuilder($class, $settings, $typeMapperFactory, $builder, $arguments, $nodes, $dumpedType);
+                $this->compileSingleArgBuilder($class, $typeMapperFactory, $builder, $arguments, $nodes, $dumpedType);
             } else {
-                $this->compileMultiArgBuilder($class, $settings, $typeMapperFactory, $builder, $arguments, $nodes, $dumpedType);
+                $this->compileMultiArgBuilder($class, $typeMapperFactory, $builder, $arguments, $nodes, $dumpedType);
             }
         }
 
@@ -147,7 +148,6 @@ final class ObjectTypeMapper implements TypeMapper
      */
     private function compileBuilderWithIsolation(
         AnonymousClassNode &$class,
-        Settings $settings,
         TypeMapperFactory $typeMapperFactory,
         ObjectBuilder $builder,
         \CuyZ\Valinor\Mapper\Object\Arguments $arguments,
@@ -164,19 +164,19 @@ final class ObjectTypeMapper implements TypeMapper
         $shapedMapper = null;
 
         if ($hasFlatPath) {
-            $mappers = $this->prepareSingleArgMappers($arguments->at(0), $settings, $typeMapperFactory);
+            $mappers = $this->prepareSingleArgMappers($arguments->at(0), $typeMapperFactory);
             $shapedMapper = $mappers['shapedMapper'];
             $flatMapper = $mappers['flatMapper'];
             $flattenedType = $mappers['flattenedType'];
             $argName = $arguments->at(0)->name();
             $argType = $arguments->at(0)->type();
-            $class = $shapedMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
-            $class = $flatMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+            $class = $shapedMapper->manipulateMapperClass($class, $typeMapperFactory);
+            $class = $flatMapper->manipulateMapperClass($class, $typeMapperFactory);
         } else {
             // Build shaped array mapper for multi-arg validation
             $shapedArrayType = $arguments->toShapedArray();
-            $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, applyKeyConverters: false);
-            $class = $shapedMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+            $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, $typeMapperFactory->settings(), applyKeyConverters: false);
+            $class = $shapedMapper->manipulateMapperClass($class, $typeMapperFactory);
         }
 
         // Build default values + construction as a single try-catch
@@ -209,7 +209,7 @@ final class ObjectTypeMapper implements TypeMapper
                 ]));
 
             if ($argType instanceof CompositeTraversableType) {
-                if (! $settings->allowSuperfluousKeys) {
+                if (! $this->settings->allowSuperfluousKeys) {
                     $keyedCondition = $keyedCondition->and(
                         call('count', [variable('source')])->equals(value(1)),
                     );
@@ -284,7 +284,6 @@ final class ObjectTypeMapper implements TypeMapper
      */
     private function compileSingleArgBuilder(
         AnonymousClassNode &$class,
-        Settings $settings,
         TypeMapperFactory $typeMapperFactory,
         ObjectBuilder $builder,
         \CuyZ\Valinor\Mapper\Object\Arguments $arguments,
@@ -296,13 +295,13 @@ final class ObjectTypeMapper implements TypeMapper
         $argType = $argument->type();
 
         // Prepare both shaped and flat mappers for single-arg builder
-        $mappers = $this->prepareSingleArgMappers($argument, $settings, $typeMapperFactory);
+        $mappers = $this->prepareSingleArgMappers($argument, $typeMapperFactory);
         $shapedMapper = $mappers['shapedMapper'];
         $flatMapper = $mappers['flatMapper'];
         $flattenedType = $mappers['flattenedType'];
 
-        $class = $shapedMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
-        $class = $flatMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+        $class = $shapedMapper->manipulateMapperClass($class, $typeMapperFactory);
+        $class = $flatMapper->manipulateMapperClass($class, $typeMapperFactory);
 
         // Default value + build nodes (reused by shaped and flat paths)
         $defaultAndBuildNodes = [];
@@ -330,7 +329,7 @@ final class ObjectTypeMapper implements TypeMapper
             ]));
 
         if ($argType instanceof CompositeTraversableType) {
-            if ($settings->allowSuperfluousKeys) {
+            if ($this->settings->allowSuperfluousKeys) {
                 // When superfluous keys are allowed, always use keyed path if key exists
             } else {
                 // Only use keyed path when source has exactly one key
@@ -389,7 +388,6 @@ final class ObjectTypeMapper implements TypeMapper
      */
     private function compileMultiArgBuilder(
         AnonymousClassNode &$class,
-        Settings $settings,
         TypeMapperFactory $typeMapperFactory,
         ObjectBuilder $builder,
         \CuyZ\Valinor\Mapper\Object\Arguments $arguments,
@@ -398,8 +396,8 @@ final class ObjectTypeMapper implements TypeMapper
     ): void {
         // Multi-argument case: delegate to ShapedArrayTypeMapper
         $shapedArrayType = $arguments->toShapedArray();
-        $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, applyKeyConverters: false);
-        $class = $shapedMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+        $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, $typeMapperFactory->settings(), applyKeyConverters: false);
+        $class = $shapedMapper->manipulateMapperClass($class, $typeMapperFactory);
 
         $nodes = [...$nodes, ...$shapedMapper->buildMappingNodes(variable('source'), variable('context'), variable('values'))];
 
@@ -436,7 +434,6 @@ final class ObjectTypeMapper implements TypeMapper
      */
     private function prepareSingleArgMappers(
         \CuyZ\Valinor\Mapper\Object\Argument $argument,
-        Settings $settings,
         TypeMapperFactory $typeMapperFactory,
     ): array {
         $argName = $argument->name();
@@ -466,7 +463,7 @@ final class ObjectTypeMapper implements TypeMapper
                 $argument->attributes(),
             ),
         ]);
-        $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, applyKeyConverters: false);
+        $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, $typeMapperFactory->settings(), applyKeyConverters: false);
 
         // Flat mapper for direct source mapping
         $flatMapper = $typeMapperFactory->for($flattenedType);

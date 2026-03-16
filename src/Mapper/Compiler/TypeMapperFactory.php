@@ -18,6 +18,7 @@ use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ShapedArrayTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\TypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\UndefinedObjectTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\UnionTypeMapper;
+use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Object\Arguments;
 use CuyZ\Valinor\Mapper\Object\Factory\ObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;
@@ -56,6 +57,7 @@ final class TypeMapperFactory
         private TypeDumper $typeDumper,
         private ConverterAnalyzer $converterAnalyzer,
         private KeyConverterHandler $keyConverterHandler,
+        private Settings $settings,
     ) {}
 
     public function registerCallback(string $key, mixed $callback): void
@@ -77,6 +79,11 @@ final class TypeMapperFactory
     public function converterAnalyzer(): ConverterAnalyzer
     {
         return $this->converterAnalyzer;
+    }
+
+    public function settings(): Settings
+    {
+        return $this->settings;
     }
 
     public function hasKeyConverters(): bool
@@ -171,6 +178,7 @@ final class TypeMapperFactory
                 return new ObjectTypeMapper(
                     $class,
                     $this->objectBuilderFactory->for($class),
+                    $this->settings,
                 );
             }
 
@@ -182,21 +190,22 @@ final class TypeMapperFactory
             return new ObjectTypeMapper(
                 $class,
                 $this->objectBuilderFactory->for($class),
+                $this->settings,
             );
         }
 
         return match (true) {
-            $type instanceof ScalarType => new ScalarTypeMapper($type),
+            $type instanceof ScalarType => new ScalarTypeMapper($type, $this->settings),
             $type instanceof NullType => new NullTypeMapper(),
-            $type instanceof MixedType => new MixedTypeMapper(),
-            $type instanceof UndefinedObjectType => new UndefinedObjectTypeMapper(),
+            $type instanceof MixedType => new MixedTypeMapper($this->settings),
+            $type instanceof UndefinedObjectType => new UndefinedObjectTypeMapper($this->settings),
             $type instanceof UnionType => new UnionTypeMapper($type),
-            $type instanceof ShapedArrayType => new ShapedArrayTypeMapper($type),
+            $type instanceof ShapedArrayType => new ShapedArrayTypeMapper($type, $this->settings),
             $type instanceof ListType,
-            $type instanceof NonEmptyListType => new ListTypeMapper($type),
+            $type instanceof NonEmptyListType => new ListTypeMapper($type, $this->settings),
             $type instanceof ArrayType,
             $type instanceof NonEmptyArrayType,
-            $type instanceof IterableType => new ArrayTypeMapper($type),
+            $type instanceof IterableType => new ArrayTypeMapper($type, $this->settings),
             default => throw new RuntimeException('Unsupported type for compiled mapper: ' . $type->toString()),
         };
     }

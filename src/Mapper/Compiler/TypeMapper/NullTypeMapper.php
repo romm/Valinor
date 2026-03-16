@@ -6,7 +6,6 @@ namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
-use CuyZ\Valinor\Library\Settings;
 
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
@@ -34,7 +33,7 @@ final class NullTypeMapper implements TypeMapper
         ];
     }
 
-    public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
+    public function manipulateMapperClass(AnonymousClassNode $class, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
         if ($class->hasMethod('map_null')) {
             return $class;

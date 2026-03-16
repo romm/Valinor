@@ -9,7 +9,6 @@ use CuyZ\Valinor\Compiler\Library\TypeAcceptNode;
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\AttributeDefinition;
-use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
@@ -50,7 +49,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
         ];
     }
 
-    public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
+    public function manipulateMapperClass(AnonymousClassNode $class, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
         $methodName = $this->methodName();
 
@@ -62,7 +61,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
         $class = $class->withMethod($methodName);
 
         // Delegate first so the type-specific method is available
-        $class = $this->delegate->manipulateMapperClass($class, $settings, $typeMapperFactory);
+        $class = $this->delegate->manipulateMapperClass($class, $typeMapperFactory);
 
         $nodes = [];
 

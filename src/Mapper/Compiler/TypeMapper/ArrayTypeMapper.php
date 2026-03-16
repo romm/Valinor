@@ -24,6 +24,7 @@ final class ArrayTypeMapper implements TypeMapper
     use TypeMapperMethodName;
     public function __construct(
         private ArrayType|NonEmptyArrayType|IterableType $type,
+        private Settings $settings,
     ) {}
 
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
@@ -41,7 +42,7 @@ final class ArrayTypeMapper implements TypeMapper
         ];
     }
 
-    public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
+    public function manipulateMapperClass(AnonymousClassNode $class, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
         $methodName = $this->methodName();
 
@@ -53,9 +54,9 @@ final class ArrayTypeMapper implements TypeMapper
         $class = $class->withMethod($methodName);
 
         $subMapper = $typeMapperFactory->for($this->type->subType());
-        $class = $subMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
+        $class = $subMapper->manipulateMapperClass($class, $typeMapperFactory);
 
-        $nodes = IterableValidationNodes::build($settings, $this->type);
+        $nodes = IterableValidationNodes::build($this->settings, $this->type);
 
         if ($this->type instanceof NonEmptyArrayType) {
             $nodes[] = if_(
