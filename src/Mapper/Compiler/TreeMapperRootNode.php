@@ -28,12 +28,12 @@ final class TreeMapperRootNode extends Node
         // Build the class shell first (constructor, properties — no map method yet)
         $classNode = $this->baseClassNode();
 
+        // Now add the map method, which calls buildMappingNodes (which may inline)
+        $classNode = $this->addMapMethod($classNode, $typeMapper);
+
         // Add type-specific methods — this also sets runtime state like
         // ScalarTypeMapper::$allowScalarValueCasting, so it MUST run before buildMappingNodes.
         $classNode = $typeMapper->manipulateMapperClass($classNode, $this->typeMapperFactory);
-
-        // Now add the map method, which calls buildMappingNodes (which may inline)
-        $classNode = $this->addMapMethod($classNode, $typeMapper);
 
         return $compiler->compile($classNode);
     }

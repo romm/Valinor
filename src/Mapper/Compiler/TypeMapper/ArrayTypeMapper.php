@@ -7,7 +7,6 @@ namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
-
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
@@ -18,10 +17,12 @@ use CuyZ\Valinor\Type\Types\IterableType;
 use CuyZ\Valinor\Type\Types\NonEmptyArrayType;
 
 use function CuyZ\Valinor\Compiler\{call, forEach_, if_, negate, newClass, param, return_, this, throw_, value, variable};
+
 /** @internal */
 final class ArrayTypeMapper implements TypeMapper
 {
     use TypeMapperMethodName;
+
     public function __construct(
         private ArrayType|NonEmptyArrayType|IterableType $type,
         private Settings $settings,
@@ -73,43 +74,34 @@ final class ArrayTypeMapper implements TypeMapper
         }
 
         // Initialize result array
-        $nodes[] = variable('result')->assign(value([]))->asStatement();
-
-        // forEach loop: validate keys and map sub-values
-        $forEachBody = [
+        $nodes = [
+            ...$nodes,
+            variable('result')->assign(value([]))->asStatement(),
+            forEach_(
+                value: variable('source'),
+                key: 'key',
+                item: 'value',
+                body: [
+                    if_(
+                        condition: negate(call('is_string', [variable('key')]))
+                            ->and(negate(call('is_int', [variable('key')]))),
+                        body: throw_(newClass(InvalidIterableKeyType::class, variable('key'), variable('context')->access('path')))->asStatement(),
+                    ),
+                    ...$subMapper->buildMappingNodes(
+                        value: variable('value'),
+                        context: variable('context')->callMethod('sub', [
+                            call('strval', [variable('key')]),
+                        ]),
+                        target: variable('result')->key(variable('key')),
+                    ),
+                ],
+            ),
             if_(
-                condition: negate(call('is_string', [variable('key')]))
-                    ->and(negate(call('is_int', [variable('key')]))),
-                body: throw_(newClass(InvalidIterableKeyType::class, variable('key'), variable('context')->access('path')))->asStatement(),
+                condition: variable('context')->callMethod('containsErrors'),
+                body: return_(value(null)),
             ),
+            return_(variable('result')),
         ];
-
-        // Map sub-value
-        $forEachBody = [
-            ...$forEachBody,
-            ...$subMapper->buildMappingNodes(
-                variable('value'),
-                variable('context')->callMethod('sub', [
-                    call('strval', [variable('key')]),
-                ]),
-                variable('result')->key(variable('key')),
-            ),
-        ];
-
-        $nodes[] = forEach_(
-            value: variable('source'),
-            key: 'key',
-            item: 'value',
-            body: $forEachBody,
-        );
-
-        // Check for errors
-        $nodes[] = if_(
-            condition: variable('context')->callMethod('containsErrors'),
-            body: return_(value(null)),
-        );
-
-        $nodes[] = return_(variable('result'));
 
         return $class->withMethod(
             name: $methodName,

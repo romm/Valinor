@@ -52,7 +52,7 @@ final class CacheTreeMapper implements TreeMapper
         try {
             $type = $this->typeParser->parse($signature);
         } catch (InvalidType $exception) {
-            throw new InvalidMappingTypeSignature($signature, $exception);
+            throw new InvalidMappingTypeSignature($signature);
         }
 
         try {
@@ -64,20 +64,7 @@ final class CacheTreeMapper implements TreeMapper
         // @phpstan-ignore argument.type (this is a temporary workaround, while waiting for the cache API to be refined)
         $this->cache->set($key, $cacheEntry);
 
-        // After compilation, merge factory callbacks with any compilation-registered callbacks
-        $allCallbacks = $this->factoryCallbacks + $this->typeMapperFactory->constructorCallbacks();
-
-        $mapper = $this->cache->get(
-            $key,
-            $this->settings->exceptionFilter,
-            $this->settings->customConstructors,
-            $allCallbacks,
-            $this->settings->convertersSortedByPriority(),
-            $this->settings->keyConverters,
-            $this->settings->inferredMapping,
-        );
-
-        return $mapper->map($signature, $source);
+        return $this->map($signature, $source);
     }
 
     private function compileFor(Type $type): string

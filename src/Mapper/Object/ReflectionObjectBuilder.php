@@ -46,17 +46,19 @@ final class ReflectionObjectBuilder implements ObjectBuilder
             variable('object')->assign(newClass($this->class->name))->asStatement(),
         ];
 
-        // @todo we should check if properties are not readonly, in which case we don't need ->call()
-        // Always use the closure approach with ->call() to support readonly
-        // properties, which require being set from within the class scope.
-        $nodes[] = closure(
-            body: [...(function () use ($values) {
-                foreach ($this->class->properties as $property) {
-                    yield variable('this')->access($property->name)->assign($values->key(value($property->name)))->asStatement();
-                }
-            })()],
-            uses: ['values'],
-        )->wrap()->callMethod('call', [variable('object')])->asStatement();
+        if (count($this->class->properties) > 0) {
+            // @todo we should check if properties are not readonly, in which case we don't need ->call()
+            // Always use the closure approach with ->call() to support readonly
+            // properties, which require being set from within the class scope.
+            $nodes[] = closure(
+                body: [...(function () use ($values) {
+                    foreach ($this->class->properties as $property) {
+                        yield variable('this')->access($property->name)->assign($values->key(value($property->name)))->asStatement();
+                    }
+                })()],
+                uses: ['values'],
+            )->wrap()->callMethod('call', [variable('object')])->asStatement();
+        }
 
         return [
             ...$nodes,

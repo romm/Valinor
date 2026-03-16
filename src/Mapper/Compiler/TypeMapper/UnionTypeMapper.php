@@ -86,30 +86,7 @@ final class UnionTypeMapper implements TypeMapper
             $this->type->types(),
         ));
 
-        if (count($nonNullTypes) === 1 && ! $hasNull) {
-            // Only one type total (no null): map directly without isolation
-            $subType = $nonNullTypes[0];
-
-            try {
-                $subMapper = $typeMapperFactory->for($subType);
-                $class = $subMapper->manipulateMapperClass($class, $typeMapperFactory);
-            } catch (CannotResolveObjectType) {
-                return $this->buildUnresolvableMethod($class, $methodName, $nodes);
-            }
-
-            $nodes[] = variable('result')->assign(value(null))->asStatement();
-
-            $nodes = [
-                ...$nodes,
-                ...$subMapper->buildMappingNodes(
-                    variable('source'),
-                    variable('context'),
-                    variable('result'),
-                ),
-            ];
-
-            $nodes[] = return_(variable('result'));
-        } elseif (count($nonNullTypes) === 1) {
+        if (count($nonNullTypes) === 1) {
             // Nullable single type: use isolation so error becomes union-level
             $subType = $nonNullTypes[0];
 

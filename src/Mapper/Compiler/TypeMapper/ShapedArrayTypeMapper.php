@@ -40,10 +40,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
             $target->assign(
                 this()->callMethod(
                     method: $this->methodName(),
-                    arguments: [
-                        $value,
-                        $context,
-                    ],
+                    arguments: [$value, $context],
                 ),
             )->asStatement(),
         ];
