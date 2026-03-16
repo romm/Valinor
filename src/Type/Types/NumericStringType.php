@@ -80,7 +80,7 @@ final class NumericStringType implements StringType
     public function compiledCanCast(Node $node): Node
     {
         $valueNode = ternary(
-            $node->instanceOf(\Stringable::class),
+            $node->instanceOf(Stringable::class),
             castTo($this, $node),
             $node,
         );

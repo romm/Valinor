@@ -11,7 +11,6 @@ use CuyZ\Valinor\Mapper\Tree\Message\HasCode;
 use CuyZ\Valinor\Mapper\Tree\Message\HasParameters;
 use CuyZ\Valinor\Mapper\Tree\Message\Message;
 
-use function array_map;
 use function CuyZ\Valinor\Compiler\{array_, newClass, value};
 
 final class MessageNode extends Node

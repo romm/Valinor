@@ -7,18 +7,18 @@ namespace CuyZ\Valinor\Mapper;
 use CuyZ\Valinor\Cache\Cache;
 use CuyZ\Valinor\Cache\CacheEntry;
 use CuyZ\Valinor\Compiler\Compiler;
-use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
 
-use function CuyZ\Valinor\Compiler\{param, shortClosure};
-use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Compiler\TreeMapperRootNode;
+use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Exception\InvalidMappingTypeSignature;
 use CuyZ\Valinor\Mapper\Exception\MappingLogicalException;
 use CuyZ\Valinor\Mapper\Exception\TypeErrorDuringMapping;
 use CuyZ\Valinor\Type\Parser\Exception\InvalidType;
 use CuyZ\Valinor\Type\Parser\TypeParser;
 use CuyZ\Valinor\Type\Type;
+
+use function CuyZ\Valinor\Compiler\{param, shortClosure};
 
 final class CacheTreeMapper implements TreeMapper
 {

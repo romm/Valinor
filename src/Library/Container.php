@@ -33,9 +33,9 @@ use CuyZ\Valinor\Mapper\Object\Factory\DateTimeZoneObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\InMemoryObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\ObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\ReflectionObjectBuilderFactory;
-use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;
 use CuyZ\Valinor\Mapper\Object\Factory\SortingObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\Factory\StrictTypesObjectBuilderFactory;
+use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;
 use CuyZ\Valinor\Mapper\Tree\Builder\ArrayNodeBuilder;
 use CuyZ\Valinor\Mapper\Tree\Builder\ConverterContainer;
 use CuyZ\Valinor\Mapper\Tree\Builder\InterfaceInferringContainer;
@@ -114,19 +114,15 @@ final class Container
                 $this->get(KeyConverterHandler::class),
             ),
 
-            ConverterAnalyzer::class => function () use ($settings) {
-                return new ConverterAnalyzer(
-                    $this->get(FunctionDefinitionRepository::class),
-                    $settings->convertersSortedByPriority(),
-                );
-            },
+            ConverterAnalyzer::class => fn() => new ConverterAnalyzer(
+                $this->get(FunctionDefinitionRepository::class),
+                $settings->convertersSortedByPriority(),
+            ),
 
-            KeyConverterHandler::class => function () use ($settings) {
-                return new KeyConverterHandler(
-                    $this->get(FunctionDefinitionRepository::class),
-                    $settings->keyConverters,
-                );
-            },
+            KeyConverterHandler::class => fn() => new KeyConverterHandler(
+                $this->get(FunctionDefinitionRepository::class),
+                $settings->keyConverters,
+            ),
 
             ArgumentsMapper::class => fn () => new TypeArgumentsMapper(
                 $this->get(FunctionDefinitionRepository::class),

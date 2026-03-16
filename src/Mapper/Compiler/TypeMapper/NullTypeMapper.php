@@ -8,25 +8,30 @@ use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
 
-use function CuyZ\Valinor\Compiler\{className, if_, param, return_, this, value, variable};
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
+use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceIsNotNull;
 use CuyZ\Valinor\Utility\ValueDumper;
 
+use function CuyZ\Valinor\Compiler\{className, if_, param, return_, this, value, variable};
+
 /** @internal */
 final class NullTypeMapper implements TypeMapper
 {
-    public function formatValueNode(Node $value, Node $context): Node
+    public function buildMappingNodes(Node $value, Node $context, Node $target): array
     {
-        return this()->callMethod(
-            method: 'map_null',
-            arguments: [
-                $value,
-                $context,
-            ],
-        );
+        return [
+            $target->assign(
+                this()->callMethod(
+                    method: 'map_null',
+                    arguments: [
+                        $value,
+                        $context,
+                    ],
+                ),
+            )->asStatement(),
+        ];
     }
 
     public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode

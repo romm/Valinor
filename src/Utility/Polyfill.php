@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Utility;
 
+use function function_exists;
+
 /** @internal */
 final class Polyfill
 {

@@ -24,7 +24,6 @@ use function array_values;
 use function assert;
 use function count;
 use function CuyZ\Valinor\Compiler\{call, logicalAnd, param, shortClosure, ternary, value, variable};
-use function function_exists;
 use function implode;
 use function in_array;
 use function is_array;

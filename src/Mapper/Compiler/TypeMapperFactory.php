@@ -25,6 +25,8 @@ use CuyZ\Valinor\Mapper\Tree\Builder\InterfaceInferringContainer;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotInferFinalClass;
 use CuyZ\Valinor\Mapper\Tree\Exception\InterfaceHasBothConstructorAndInfer;
 use CuyZ\Valinor\Mapper\Tree\Exception\ObjectImplementationCallbackError;
+use CuyZ\Valinor\Mapper\Tree\Exception\UnresolvableShellType;
+use CuyZ\Valinor\Type\Dumper\TypeDumper;
 use CuyZ\Valinor\Type\ObjectType;
 use CuyZ\Valinor\Type\ScalarType;
 use CuyZ\Valinor\Type\Type;
@@ -40,8 +42,6 @@ use CuyZ\Valinor\Type\Types\ShapedArrayType;
 use CuyZ\Valinor\Type\Types\UndefinedObjectType;
 use CuyZ\Valinor\Type\Types\UnionType;
 use CuyZ\Valinor\Type\Types\UnresolvableType;
-use CuyZ\Valinor\Type\Dumper\TypeDumper;
-use CuyZ\Valinor\Mapper\Tree\Exception\UnresolvableShellType;
 use RuntimeException;
 
 final class TypeMapperFactory

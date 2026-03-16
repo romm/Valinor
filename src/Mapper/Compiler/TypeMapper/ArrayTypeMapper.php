@@ -8,18 +8,16 @@ use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
 
-use function CuyZ\Valinor\Compiler\{call, forEach_, if_, negate, newClass, param, return_, this, throw_, value, variable};
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
+use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\InvalidIterableKeyType;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceIsEmptyArray;
-use CuyZ\Valinor\Mapper\Tree\Exception\SourceMustBeIterable;
 use CuyZ\Valinor\Type\Types\ArrayType;
 use CuyZ\Valinor\Type\Types\IterableType;
 use CuyZ\Valinor\Type\Types\NonEmptyArrayType;
-use CuyZ\Valinor\Utility\ValueDumper;
 
+use function CuyZ\Valinor\Compiler\{call, forEach_, if_, negate, newClass, param, return_, this, throw_, value, variable};
 /** @internal */
 final class ArrayTypeMapper implements TypeMapper
 {
@@ -28,15 +26,19 @@ final class ArrayTypeMapper implements TypeMapper
         private ArrayType|NonEmptyArrayType|IterableType $type,
     ) {}
 
-    public function formatValueNode(Node $value, Node $context): Node
+    public function buildMappingNodes(Node $value, Node $context, Node $target): array
     {
-        return this()->callMethod(
-            method: $this->methodName(),
-            arguments: [
-                $value,
-                $context,
-            ],
-        );
+        return [
+            $target->assign(
+                this()->callMethod(
+                    method: $this->methodName(),
+                    arguments: [
+                        $value,
+                        $context,
+                    ],
+                ),
+            )->asStatement(),
+        ];
     }
 
     public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
@@ -79,15 +81,18 @@ final class ArrayTypeMapper implements TypeMapper
                     ->and(negate(call('is_int', [variable('key')]))),
                 body: throw_(newClass(InvalidIterableKeyType::class, variable('key'), variable('context')->access('path')))->asStatement(),
             ),
-            // Map sub-value
-            variable('result')->key(variable('key'))->assign(
-                $subMapper->formatValueNode(
-                    variable('value'),
-                    variable('context')->callMethod('sub', [
-                        call('strval', [variable('key')]),
-                    ]),
-                ),
-            )->asStatement(),
+        ];
+
+        // Map sub-value
+        $forEachBody = [
+            ...$forEachBody,
+            ...$subMapper->buildMappingNodes(
+                variable('value'),
+                variable('context')->callMethod('sub', [
+                    call('strval', [variable('key')]),
+                ]),
+                variable('result')->key(variable('key')),
+            ),
         ];
 
         $nodes[] = forEach_(

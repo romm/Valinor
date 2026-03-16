@@ -19,9 +19,8 @@ use CuyZ\Valinor\Type\Type;
 use CuyZ\Valinor\Utility\ValueDumper;
 use Throwable;
 
-use function CuyZ\Valinor\Compiler\{call, className, closure, if_, logicalAnd, negate, param, return_, ternary, this, throw_, try_, value, variable};
+use function CuyZ\Valinor\Compiler\{call, className, closure, if_, logicalAnd, negate, param, return_, ternary, this, try_, value, variable};
 use function implode;
-
 /** @internal */
 final class ConverterTypeMapperWrapper implements TypeMapper
 {
@@ -35,16 +34,20 @@ final class ConverterTypeMapperWrapper implements TypeMapper
         private array $matchingConverters,
     ) {}
 
-    public function formatValueNode(Node $value, Node $context): Node
+    public function buildMappingNodes(Node $value, Node $context, Node $target): array
     {
-        return this()->callMethod(
-            method: $this->methodName(),
-            arguments: [
-                $value,
-                $context,
-                value(0),
-            ],
-        );
+        return [
+            $target->assign(
+                this()->callMethod(
+                    method: $this->methodName(),
+                    arguments: [
+                        $value,
+                        $context,
+                        value(0),
+                    ],
+                ),
+            )->asStatement(),
+        ];
     }
 
     public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
@@ -81,12 +84,18 @@ final class ConverterTypeMapperWrapper implements TypeMapper
         }
 
         // Fall through to delegate type mapper
-        $nodes[] = return_(
-            $this->delegate->formatValueNode(
+        $nodes[] = variable('delegateResult')->assign(value(null))->asStatement();
+
+        $nodes = [
+            ...$nodes,
+            ...$this->delegate->buildMappingNodes(
                 variable('source'),
                 variable('context'),
+                variable('delegateResult'),
             ),
-        );
+        ];
+
+        $nodes[] = return_(variable('delegateResult'));
 
         return $class->withMethod(
             name: $methodName,

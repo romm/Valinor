@@ -77,7 +77,7 @@ final class NativeStringType implements StringType
     {
         return call('is_string', [$node])
             ->or(call('is_numeric', [$node]))
-            ->or($node->instanceOf(\Stringable::class));
+            ->or($node->instanceOf(Stringable::class));
     }
 
     public function compiledCast(Node $node): Node

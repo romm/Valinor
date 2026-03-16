@@ -11,7 +11,6 @@ use CuyZ\Valinor\Type\Type;
 use CuyZ\Valinor\Utility\Polyfill;
 
 use function CuyZ\Valinor\Compiler\{call, logicalAnd, param, shortClosure, value, variable};
-use function function_exists;
 use function is_array;
 
 /** @internal */

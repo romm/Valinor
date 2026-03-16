@@ -57,11 +57,13 @@ final class IfNode extends Node
             PHP;
         }
 
+        $closing = $else === '' ? '}' : "} $else";
+
         return $compiler->write(
             <<<PHP
             if ($condition) {
             $body
-            } $else
+            $closing
             PHP,
         );
     }

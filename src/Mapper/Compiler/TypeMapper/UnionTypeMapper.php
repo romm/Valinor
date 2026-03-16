@@ -9,26 +9,23 @@ use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
-use CuyZ\Valinor\Mapper\Compiler\TypeMapper\InterfacePassthroughTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\UnionResolver;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotResolveObjectType;
 use CuyZ\Valinor\Type\ClassType;
-use CuyZ\Valinor\Type\FixedType;
 use CuyZ\Valinor\Type\ScalarType;
 use CuyZ\Valinor\Type\Type;
-use CuyZ\Valinor\Type\Types\EnumType;
 use CuyZ\Valinor\Type\Types\InterfaceType;
 use CuyZ\Valinor\Type\Types\NullType;
 use CuyZ\Valinor\Type\Types\ShapedArrayType;
 use CuyZ\Valinor\Type\Types\UnionType;
-use CuyZ\Valinor\Type\VacantType;
 use CuyZ\Valinor\Utility\TypeHelper;
+
+use Throwable;
 
 use function array_map;
 use function count;
-use function CuyZ\Valinor\Compiler\{array_, className, if_, match_, negate, newClass, param, return_, this, throw_, value, variable};
+use function CuyZ\Valinor\Compiler\{array_, className, if_, negate, newClass, param, return_, this, value, variable};
 use function implode;
-
 /** @internal */
 final class UnionTypeMapper implements TypeMapper
 {
@@ -37,15 +34,19 @@ final class UnionTypeMapper implements TypeMapper
         private UnionType $type,
     ) {}
 
-    public function formatValueNode(Node $value, Node $context): Node
+    public function buildMappingNodes(Node $value, Node $context, Node $target): array
     {
-        return this()->callMethod(
-            method: $this->methodName(),
-            arguments: [
-                $value,
-                $context,
-            ],
-        );
+        return [
+            $target->assign(
+                this()->callMethod(
+                    method: $this->methodName(),
+                    arguments: [
+                        $value,
+                        $context,
+                    ],
+                ),
+            )->asStatement(),
+        ];
     }
 
     public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
@@ -82,7 +83,7 @@ final class UnionTypeMapper implements TypeMapper
 
         // Expected signature for unions — use TypeDumper for readable types
         $expectedSignature = implode(', ', array_map(
-            fn ($t) => $typeMapperFactory->dumpType($t),
+            $typeMapperFactory->dumpType(...),
             $this->type->types(),
         ));
 
@@ -97,13 +98,19 @@ final class UnionTypeMapper implements TypeMapper
                 return $this->buildUnresolvableMethod($class, $methodName, $nodes);
             }
 
-            $nodes[] = return_(
-                $subMapper->formatValueNode(
+            $nodes[] = variable('result')->assign(value(null))->asStatement();
+
+            $nodes = [
+                ...$nodes,
+                ...$subMapper->buildMappingNodes(
                     variable('source'),
                     variable('context'),
+                    variable('result'),
                 ),
-            );
-        } else if (count($nonNullTypes) === 1) {
+            ];
+
+            $nodes[] = return_(variable('result'));
+        } elseif (count($nonNullTypes) === 1) {
             // Nullable single type: use isolation so error becomes union-level
             $subType = $nonNullTypes[0];
 
@@ -119,12 +126,16 @@ final class UnionTypeMapper implements TypeMapper
                 variable('context')->callMethod('isolate'),
             )->asStatement();
 
-            $nodes[] = variable('subResult')->assign(
-                $subMapper->formatValueNode(
+            $nodes[] = variable('subResult')->assign(value(null))->asStatement();
+
+            $nodes = [
+                ...$nodes,
+                ...$subMapper->buildMappingNodes(
                     variable('source'),
                     variable('subContext'),
+                    variable('subResult'),
                 ),
-            )->asStatement();
+            ];
 
             // If no errors, return the result
             $nodes[] = if_(
@@ -188,12 +199,16 @@ final class UnionTypeMapper implements TypeMapper
                 )->asStatement();
 
                 // Try mapping
-                $nodes[] = variable($subResultVar)->assign(
-                    $subMapper->formatValueNode(
+                $nodes[] = variable($subResultVar)->assign(value(null))->asStatement();
+
+                $nodes = [
+                    ...$nodes,
+                    ...$subMapper->buildMappingNodes(
                         variable('source'),
                         variable($subCtxVar),
+                        variable($subResultVar),
                     ),
-                )->asStatement();
+                ];
 
                 // Add to candidates using compile-time sequential index
                 $nodes[] = variable('candidates')->key(value($candidateIdx))->assign(
@@ -235,7 +250,6 @@ final class UnionTypeMapper implements TypeMapper
             body: $nodes,
         );
     }
-
 
     private function buildUnresolvableMethod(
         AnonymousClassNode $class,
@@ -279,7 +293,7 @@ final class UnionTypeMapper implements TypeMapper
                 if ($mapper instanceof ObjectTypeMapper) {
                     return $mapper->argumentCount();
                 }
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 // Ignore errors
             }
         }

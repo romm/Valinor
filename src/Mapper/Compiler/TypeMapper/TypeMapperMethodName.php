@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
+use function hash;
+use function preg_replace;
+use function strtolower;
+
 /**
  * Provides a shared method name generation helper for TypeMappers.
  *

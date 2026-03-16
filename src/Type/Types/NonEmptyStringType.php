@@ -78,7 +78,7 @@ final class NonEmptyStringType implements StringType
         return logicalOr(
             call('is_string', [$node]),
             call('is_numeric', [$node]),
-            $node->instanceOf(\Stringable::class),
+            $node->instanceOf(Stringable::class),
         )->wrap()->and(
             castTo($this, $node)->different(value(''))
         );

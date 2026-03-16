@@ -11,7 +11,10 @@ use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 
 interface TypeMapper
 {
-    public function formatValueNode(Node $value, Node $context): Node;
+    /**
+     * @return list<Node>
+     */
+    public function buildMappingNodes(Node $value, Node $context, Node $target): array;
 
     public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode;
 }

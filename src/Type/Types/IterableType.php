@@ -12,7 +12,6 @@ use CuyZ\Valinor\Utility\Polyfill;
 use Generator;
 
 use function CuyZ\Valinor\Compiler\{call, logicalAnd, negate, param, shortClosure, variable};
-use function function_exists;
 use function is_iterable;
 
 /** @internal */

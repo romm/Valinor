@@ -7,6 +7,8 @@ namespace CuyZ\Valinor\Mapper\Object;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\Parameters;
 
+use function count;
+
 use function CuyZ\Valinor\Compiler\{array_, call, value, variable};
 
 /** @internal */

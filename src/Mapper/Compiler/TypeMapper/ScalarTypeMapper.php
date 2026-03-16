@@ -7,36 +7,66 @@ namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
+use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Type\FloatType;
 use CuyZ\Valinor\Type\ScalarType;
 use CuyZ\Valinor\Type\Types\UnionType;
 use CuyZ\Valinor\Utility\ValueDumper;
 
-use function CuyZ\Valinor\Compiler\{call, castTo, className, if_, negate, param, return_, this, value, variable};
+use function CuyZ\Valinor\Compiler\{call, castTo, className, if_, logicalOr, negate, param, return_, this, value, variable};
 
 final class ScalarTypeMapper implements TypeMapper
 {
     use TypeMapperMethodName;
+    private bool $allowScalarValueCasting = false;
+
     public function __construct(
         private ScalarType $type,
     ) {}
 
-    public function formatValueNode(Node $value, Node $context): Node
+    public function buildMappingNodes(Node $value, Node $context, Node $target): array
     {
-        return this()->callMethod(
-            method: $this->methodName(),
-            arguments: [
-                $value,
-                $context,
-            ],
-        );
+        if (! $this->allowScalarValueCasting) {
+            // Inline: type check directly, avoiding method call + eager sub-context allocation
+            $acceptCondition = $this->type instanceof FloatType
+                ? logicalOr($this->type->compiledAccept($value), call('is_int', [$value]))
+                : $this->type->compiledAccept($value);
+
+            $assignNode = $this->type instanceof FloatType
+                ? $target->assign(castTo($this->type, $value))->asStatement()
+                : $target->assign($value)->asStatement();
+
+            return [
+                if_(
+                    condition: $acceptCondition,
+                    body: $assignNode,
+                )->else([
+                    $context->callMethod('addMessage', [
+                        new MessageNode($this->type->errorMessage()),
+                        value($this->type->toString()),
+                        className(ValueDumper::class)->callStaticMethod('dump', [$value]),
+                    ])->asStatement(),
+                ]),
+            ];
+        }
+
+        // Casting enabled: fall back to method call
+        return [
+            $target->assign(
+                this()->callMethod(
+                    method: $this->methodName(),
+                    arguments: [$value, $context],
+                ),
+            )->asStatement(),
+        ];
     }
 
     public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
     {
+        $this->allowScalarValueCasting = $settings->allowScalarValueCasting;
+
         $methodName = $this->methodName();
 
         if ($class->hasMethod($methodName)) {

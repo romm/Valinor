@@ -18,7 +18,6 @@ use CuyZ\Valinor\Type\Types\CallableType;
 use CuyZ\Valinor\Type\Types\Generics;
 use CuyZ\Valinor\Type\Types\UnresolvableType;
 
-
 /**
  * Analyzes and matches converters (both global and attribute-based) against target types.
  *

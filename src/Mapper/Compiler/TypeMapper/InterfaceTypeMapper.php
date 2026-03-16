@@ -8,20 +8,20 @@ use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\FunctionDefinition;
 
-use function CuyZ\Valinor\Compiler\{call, className, if_, match_, negate, newClass, param, return_, this, throw_, try_, value, variable};
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
-use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
+use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Object\Arguments;
 use CuyZ\Valinor\Mapper\Tree\Exception\ObjectImplementationNotRegistered;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceMustBeIterable;
 use CuyZ\Valinor\Type\ObjectType;
 use CuyZ\Valinor\Utility\ValueDumper;
+use Exception;
 
 use function array_keys;
 use function count;
-
+use function CuyZ\Valinor\Compiler\{call, className, if_, negate, newClass, param, return_, this, throw_, try_, value, variable};
 /** @internal */
 final class InterfaceTypeMapper implements TypeMapper
 {
@@ -36,15 +36,19 @@ final class InterfaceTypeMapper implements TypeMapper
         private array $implementations,
     ) {}
 
-    public function formatValueNode(Node $value, Node $context): Node
+    public function buildMappingNodes(Node $value, Node $context, Node $target): array
     {
-        return this()->callMethod(
-            method: $this->methodName(),
-            arguments: [
-                $value,
-                $context,
-            ],
-        );
+        return [
+            $target->assign(
+                this()->callMethod(
+                    method: $this->methodName(),
+                    arguments: [
+                        $value,
+                        $context,
+                    ],
+                ),
+            )->asStatement(),
+        ];
     }
 
     public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
@@ -83,30 +87,31 @@ final class InterfaceTypeMapper implements TypeMapper
             $nodes[] = variable('context')->callMethod('allowSuperfluousKeys', $inferArgNames)->asStatement();
         }
 
-        // Build match expression to dispatch to the correct implementation
-        $matchNode = match_(variable('className'));
+        // Dispatch to the correct implementation using if-chain
+        $nodes[] = variable('result')->assign(value(null))->asStatement();
+
         foreach ($implMappers as $className => $implMapper) {
-            $matchNode = $matchNode->withCase(
-                value($className),
-                $implMapper->formatValueNode(
-                    variable('source'),
-                    variable('context'),
-                ),
+            $formatNodes = $implMapper->buildMappingNodes(
+                variable('source'),
+                variable('context'),
+                variable('result'),
+            );
+
+            $nodes[] = if_(
+                condition: variable('className')->equals(value($className)),
+                body: [...$formatNodes, return_(variable('result'))],
             );
         }
-        // Default case: throw ObjectImplementationNotRegistered with the implementation list
-        $matchNode = $matchNode->withDefaultCase(
-            throw_(
-                newClass(
-                    ObjectImplementationNotRegistered::class,
-                    variable('className'),
-                    value($this->type->className()),
-                    value(array_keys($this->implementations)),
-                ),
-            ),
-        );
 
-        $nodes[] = return_($matchNode);
+        // Default: throw ObjectImplementationNotRegistered
+        $nodes[] = throw_(
+            newClass(
+                ObjectImplementationNotRegistered::class,
+                variable('className'),
+                value($this->type->className()),
+                value(array_keys($this->implementations)),
+            ),
+        )->asStatement();
 
         return $class->withMethod(
             name: $methodName,
@@ -141,7 +146,7 @@ final class InterfaceTypeMapper implements TypeMapper
                     $inferCallNode->call(),
                 )->asStatement(),
             )->catches(
-                \Exception::class,
+                Exception::class,
                 variable('context')->callMethod('addMessage', [
                     this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
                     value($this->type->toString()),
@@ -181,23 +186,21 @@ final class InterfaceTypeMapper implements TypeMapper
             // If source is an array with the arg key, extract it
             $nodes[] = if_(
                 condition: $keyedCondition,
-                body: variable('inferArg')->assign(
-                    $argMapper->formatValueNode(
-                        variable('source')->key(value($argName)),
-                        variable('inferContext')->callMethod('sub', [value($argName)]),
-                    ),
-                )->asStatement(),
+                body: $argMapper->buildMappingNodes(
+                    variable('source')->key(value($argName)),
+                    variable('inferContext')->callMethod('sub', [value($argName)]),
+                    variable('inferArg'),
+                ),
             );
 
             // Otherwise, use source directly (scalar flattening)
             $nodes[] = if_(
                 condition: negate($keyedCondition->wrap()),
-                body: variable('inferArg')->assign(
-                    $argMapper->formatValueNode(
-                        variable('source'),
-                        variable('inferContext'),
-                    ),
-                )->asStatement(),
+                body: $argMapper->buildMappingNodes(
+                    variable('source'),
+                    variable('inferContext'),
+                    variable('inferArg'),
+                ),
             );
 
             // If argument mapping failed, propagate errors
@@ -217,7 +220,7 @@ final class InterfaceTypeMapper implements TypeMapper
                     $inferCallNode->call([variable('inferArg')]),
                 )->asStatement(),
             )->catches(
-                \Exception::class,
+                Exception::class,
                 variable('context')->callMethod('addMessage', [
                     this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
                     value($this->type->toString()),
@@ -275,12 +278,11 @@ final class InterfaceTypeMapper implements TypeMapper
                         value($argName),
                         variable('source'),
                     ]),
-                    body: variable('inferArg_' . $argName)->assign(
-                        $argMapper->formatValueNode(
-                            variable('source')->key(value($argName)),
-                            variable('inferContext')->callMethod('sub', [value($argName)]),
-                        ),
-                    )->asStatement(),
+                    body: $argMapper->buildMappingNodes(
+                        variable('source')->key(value($argName)),
+                        variable('inferContext')->callMethod('sub', [value($argName)]),
+                        variable('inferArg_' . $argName),
+                    ),
                 );
             }
 
@@ -306,7 +308,7 @@ final class InterfaceTypeMapper implements TypeMapper
                     $inferCallNode->call($callArgs),
                 )->asStatement(),
             )->catches(
-                \Exception::class,
+                Exception::class,
                 variable('context')->callMethod('addMessage', [
                     this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
                     value($this->type->toString()),

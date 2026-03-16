@@ -8,7 +8,9 @@ use CuyZ\Valinor\Type\Types\EnumType;
 use CuyZ\Valinor\Type\Types\Factory\ValueTypeFactory;
 use CuyZ\Valinor\Type\Types\UnionType;
 
-use function CuyZ\Valinor\Compiler\{call, className, return_, value, variable};
+use function CuyZ\Valinor\Compiler\{call, className, return_, value};
+
+use function is_subclass_of;
 
 /** @internal */
 class NativeEnumObjectBuilder implements ObjectBuilder

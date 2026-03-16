@@ -77,7 +77,7 @@ final class StringValueType implements StringType, FixedType
         return logicalOr(
             call('is_string', [$node]),
             call('is_numeric', [$node]),
-            $node->instanceOf(\Stringable::class),
+            $node->instanceOf(Stringable::class),
         )->wrap()->and(
             castTo(NativeStringType::get(), $node)->equals(value($this->value))
         );

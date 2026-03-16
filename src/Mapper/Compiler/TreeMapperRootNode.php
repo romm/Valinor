@@ -27,13 +27,20 @@ final class TreeMapperRootNode extends Node
     {
         $typeMapper = $this->typeMapperFactory->for($this->type);
 
-        $classNode = $this->mapperClassNode($typeMapper);
+        // Build the class shell first (constructor, properties — no map method yet)
+        $classNode = $this->baseClassNode();
+
+        // Add type-specific methods — this also sets runtime state like
+        // ScalarTypeMapper::$allowScalarValueCasting, so it MUST run before buildMappingNodes.
         $classNode = $typeMapper->manipulateMapperClass($classNode, $this->settings, $this->typeMapperFactory);
+
+        // Now add the map method, which calls buildMappingNodes (which may inline)
+        $classNode = $this->addMapMethod($classNode, $typeMapper);
 
         return $compiler->compile($classNode);
     }
 
-    private function mapperClassNode(TypeMapper $typeMapper): AnonymousClassNode
+    private function baseClassNode(): AnonymousClassNode
     {
         return anonymousClass()
             ->implements(TreeMapper::class)
@@ -71,34 +78,42 @@ final class TreeMapperRootNode extends Node
                     this()->access('keyConverters')->assign(variable('keyConverters'))->asStatement(),
                     this()->access('inferredMapping')->assign(variable('inferredMapping'))->asStatement(),
                 ],
-            )
-            ->withMethod(
-                name: 'map',
-                visibility: 'public',
-                parameters: [
-                    param('signature', 'string'),
-                    param('source', 'mixed'),
-                ],
-                returnType: 'mixed',
-                body: [
-                    variable('context')->assign(newClass(MappingContext::class))->asStatement(),
-                    variable('result')->assign(
-                        $typeMapper->formatValueNode(
-                            variable('source'),
-                            variable('context'),
-                        ),
-                    )->asStatement(),
-                    if_(
-                        condition: variable('context')->callMethod('containsErrors'),
-                        body: throw_(newClass(
-                            TypeTreeMapperError::class,
-                            variable('source'),
-                            value($this->type->toString()),
-                            variable('context')->access('messages')->callMethod('getArrayCopy'),
-                        ))->asStatement(),
-                    ),
-                    return_(variable('result')),
-                ],
             );
+    }
+
+    private function addMapMethod(AnonymousClassNode $classNode, TypeMapper $typeMapper): AnonymousClassNode
+    {
+        $formatNodes = $typeMapper->buildMappingNodes(
+            variable('source'),
+            variable('context'),
+            variable('result'),
+        );
+
+        $mapBody = [
+            variable('context')->assign(newClass(MappingContext::class))->asStatement(),
+            variable('result')->assign(value(null))->asStatement(),
+            ...$formatNodes,
+            if_(
+                condition: variable('context')->callMethod('containsErrors'),
+                body: throw_(newClass(
+                    TypeTreeMapperError::class,
+                    variable('source'),
+                    value($this->type->toString()),
+                    variable('context')->access('messages')->callMethod('getArrayCopy'),
+                ))->asStatement(),
+            ),
+            return_(variable('result')),
+        ];
+
+        return $classNode->withMethod(
+            name: 'map',
+            visibility: 'public',
+            parameters: [
+                param('signature', 'string'),
+                param('source', 'mixed'),
+            ],
+            returnType: 'mixed',
+            body: $mapBody,
+        );
     }
 }

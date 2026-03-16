@@ -19,12 +19,16 @@ use function CuyZ\Valinor\Compiler\{call, className, if_, negate, param, return_
 /** @internal */
 final class UndefinedObjectTypeMapper implements TypeMapper
 {
-    public function formatValueNode(Node $value, Node $context): Node
+    public function buildMappingNodes(Node $value, Node $context, Node $target): array
     {
-        return this()->callMethod(
-            method: 'map_object',
-            arguments: [$value, $context],
-        );
+        return [
+            $target->assign(
+                this()->callMethod(
+                    method: 'map_object',
+                    arguments: [$value, $context],
+                ),
+            )->asStatement(),
+        ];
     }
 
     public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode

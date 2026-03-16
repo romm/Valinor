@@ -50,7 +50,7 @@ final class ScalarConcreteType implements ScalarType
     {
         return logicalOr(
             call('is_scalar', [$node]),
-            $node->instanceOf(\Stringable::class),
+            $node->instanceOf(Stringable::class),
         );
     }
 
@@ -58,7 +58,7 @@ final class ScalarConcreteType implements ScalarType
     {
         // If Stringable, cast to string; otherwise return as-is (already scalar)
         return ternary(
-            $node->instanceOf(\Stringable::class),
+            $node->instanceOf(Stringable::class),
             castTo(NativeStringType::get(), $node),
             $node,
         )->wrap();

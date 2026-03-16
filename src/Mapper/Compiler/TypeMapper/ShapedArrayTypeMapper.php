@@ -7,21 +7,20 @@ namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
-use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
+use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotMapToPermissiveType;
 use CuyZ\Valinor\Mapper\Tree\Exception\MissingNodeValue;
-use CuyZ\Valinor\Mapper\Tree\Exception\SourceMustBeIterable;
 use CuyZ\Valinor\Mapper\Tree\Exception\UnexpectedKeyInSource;
-use CuyZ\Valinor\Mapper\Tree\Message\Message;
-use Exception;
 use CuyZ\Valinor\Type\Types\MixedType;
 use CuyZ\Valinor\Type\Types\ShapedArrayType;
 use CuyZ\Valinor\Type\Types\UndefinedObjectType;
 use CuyZ\Valinor\Type\VacantType;
 use CuyZ\Valinor\Utility\ValueDumper;
+use Exception;
 
+use function array_flip;
 use function array_keys;
 use function CuyZ\Valinor\Compiler\{call, className, forEach_, if_, negate, newClass, param, return_, this, throw_, value, variable};
 
@@ -34,15 +33,19 @@ final class ShapedArrayTypeMapper implements TypeMapper
         private bool $applyKeyConverters = true,
     ) {}
 
-    public function formatValueNode(Node $value, Node $context): Node
+    public function buildMappingNodes(Node $value, Node $context, Node $target): array
     {
-        return this()->callMethod(
-            method: $this->methodName(),
-            arguments: [
-                $value,
-                $context,
-            ],
-        );
+        return [
+            $target->assign(
+                this()->callMethod(
+                    method: $this->methodName(),
+                    arguments: [
+                        $value,
+                        $context,
+                    ],
+                ),
+            )->asStatement(),
+        ];
     }
 
     public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
@@ -96,6 +99,8 @@ final class ShapedArrayTypeMapper implements TypeMapper
 
             $keyStr = (string)$key;
 
+            $elementTarget = variable('result')->key(value($key));
+
             if ($element->isOptional()) {
                 // Optional element: only process if key exists
                 $nodes[] = if_(
@@ -103,31 +108,28 @@ final class ShapedArrayTypeMapper implements TypeMapper
                         value($key),
                         variable('source'),
                     ]),
-                    body: variable('result')->key(value($key))->assign(
-                        $subMapper->formatValueNode(
-                            variable('source')->key(value($key)),
-                            variable('context')->callMethod('sub', [value($keyStr)]),
-                        ),
-                    )->asStatement(),
+                    body: $subMapper->buildMappingNodes(
+                        variable('source')->key(value($key)),
+                        variable('context')->callMethod('sub', [value($keyStr)]),
+                        $elementTarget,
+                    ),
                 );
             } else {
                 // Required element: map value if exists, otherwise handle missing
-                $ifBody = variable('result')->key(value($key))->assign(
-                    $subMapper->formatValueNode(
-                        variable('source')->key(value($key)),
-                        variable('context')->callMethod('sub', [value($keyStr)]),
-                    ),
-                )->asStatement();
+                $ifBody = $subMapper->buildMappingNodes(
+                    variable('source')->key(value($key)),
+                    variable('context')->callMethod('sub', [value($keyStr)]),
+                    $elementTarget,
+                );
 
                 if ($settings->allowUndefinedValues) {
                     // When undefined values are allowed, pass null through sub-mapper
                     // (it handles null→default conversion, e.g. null→[] for lists)
-                    $elseBody = variable('result')->key(value($key))->assign(
-                        $subMapper->formatValueNode(
-                            value(null),
-                            variable('context')->callMethod('sub', [value($keyStr)]),
-                        ),
-                    )->asStatement();
+                    $elseBody = $subMapper->buildMappingNodes(
+                        value(null),
+                        variable('context')->callMethod('sub', [value($keyStr)]),
+                        $elementTarget,
+                    );
                 } else {
                     // When undefined values are NOT allowed, add a proper missing value error
                     $dumpedElementType = $typeMapperFactory->dumpType($element->type());
@@ -210,14 +212,13 @@ final class ShapedArrayTypeMapper implements TypeMapper
                     variable('remaining'),
                     'remainingKey',
                     'remainingValue',
-                    variable('result')->key(variable('remainingKey'))->assign(
-                        $valueMapper->formatValueNode(
-                            variable('remainingValue'),
-                            variable('context')->callMethod('sub', [
-                                call('strval', [variable('remainingKey')]),
-                            ]),
-                        ),
-                    )->asStatement(),
+                    $valueMapper->buildMappingNodes(
+                        variable('remainingValue'),
+                        variable('context')->callMethod('sub', [
+                            call('strval', [variable('remainingKey')]),
+                        ]),
+                        variable('result')->key(variable('remainingKey')),
+                    ),
                 );
             }
         } elseif (! $settings->allowSuperfluousKeys) {

@@ -8,7 +8,6 @@ use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Definition\ClassDefinition;
 
-use function CuyZ\Valinor\Compiler\{array_, call, className, if_, negate, newClass, param, return_, this, throw_, try_, value, variable};
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\Node\MessageNode;
@@ -18,7 +17,6 @@ use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;
 use CuyZ\Valinor\Mapper\Object\ObjectBuilder;
 use CuyZ\Valinor\Mapper\Tree\Message\Message;
 use CuyZ\Valinor\Mapper\Tree\Message\UserlandError;
-use Exception;
 use CuyZ\Valinor\Type\CompositeTraversableType;
 use CuyZ\Valinor\Type\ObjectType;
 use CuyZ\Valinor\Type\Type;
@@ -31,8 +29,9 @@ use CuyZ\Valinor\Utility\ValueDumper;
 use function array_filter;
 
 use function array_merge;
-use function count;
 
+use function count;
+use function CuyZ\Valinor\Compiler\{array_, call, className, if_, negate, param, return_, this, try_, value, variable};
 final class ObjectTypeMapper implements TypeMapper
 {
     use TypeMapperMethodName;
@@ -43,15 +42,19 @@ final class ObjectTypeMapper implements TypeMapper
         private array $builders,
     ) {}
 
-    public function formatValueNode(Node $value, Node $context): Node
+    public function buildMappingNodes(Node $value, Node $context, Node $target): array
     {
-        return this()->callMethod(
-            method: $this->methodName(),
-            arguments: [
-                $value,
-                $context,
-            ],
-        );
+        return [
+            $target->assign(
+                this()->callMethod(
+                    method: $this->methodName(),
+                    arguments: [
+                        $value,
+                        $context,
+                    ],
+                ),
+            )->asStatement(),
+        ];
     }
 
     public function manipulateMapperClass(AnonymousClassNode $class, Settings $settings, TypeMapperFactory $typeMapperFactory): AnonymousClassNode
@@ -222,9 +225,7 @@ final class ObjectTypeMapper implements TypeMapper
                 variable('isolatedCtx')->assign(
                     variable('context')->callMethod('isolate'),
                 )->asStatement(),
-                variable('values')->assign(
-                    $shapedMapper->formatValueNode(variable('source'), variable('isolatedCtx')),
-                )->asStatement(),
+                ...$shapedMapper->buildMappingNodes(variable('source'), variable('isolatedCtx'), variable('values')),
                 if_(
                     condition: negate(variable('isolatedCtx')->callMethod('containsErrors')),
                     body: $buildNodes,
@@ -240,12 +241,16 @@ final class ObjectTypeMapper implements TypeMapper
             $nodes[] = variable('isolatedCtx')->assign(
                 variable('context')->callMethod('isolate'),
             )->asStatement();
-            $nodes[] = variable('mappedValue')->assign(
-                $flatMapper->formatValueNode(
+
+            $nodes = [
+                ...$nodes,
+                ...$flatMapper->buildMappingNodes(
                     variable('source'),
                     variable('isolatedCtx'),
+                    variable('mappedValue'),
                 ),
-            )->asStatement();
+            ];
+
             $nodes[] = if_(
                 condition: negate(variable('isolatedCtx')->callMethod('containsErrors')),
                 body: [
@@ -262,9 +267,7 @@ final class ObjectTypeMapper implements TypeMapper
             $nodes[] = variable('isolatedCtx')->assign(
                 variable('context')->callMethod('isolate'),
             )->asStatement();
-            $nodes[] = variable('values')->assign(
-                $shapedMapper->formatValueNode(variable('source'), variable('isolatedCtx')),
-            )->asStatement();
+            $nodes = [...$nodes, ...$shapedMapper->buildMappingNodes(variable('source'), variable('isolatedCtx'), variable('values'))];
             $nodes[] = if_(
                 condition: negate(variable('isolatedCtx')->callMethod('containsErrors')),
                 body: $buildNodes,
@@ -346,9 +349,7 @@ final class ObjectTypeMapper implements TypeMapper
         $nodes[] = if_(
             condition: $keyedCondition,
             body: [
-                variable('values')->assign(
-                    $shapedMapper->formatValueNode(variable('source'), variable('context')),
-                )->asStatement(),
+                ...$shapedMapper->buildMappingNodes(variable('source'), variable('context'), variable('values')),
                 if_(
                     condition: variable('values')->equals(value(null)),
                     body: return_(value(null)),
@@ -358,12 +359,14 @@ final class ObjectTypeMapper implements TypeMapper
         );
 
         // Flat path: map source directly as the argument value
-        $nodes[] = variable('mappedValue')->assign(
-            $flatMapper->formatValueNode(
+        $nodes = [
+            ...$nodes,
+            ...$flatMapper->buildMappingNodes(
                 variable('source'),
                 variable('context'),
+                variable('mappedValue'),
             ),
-        )->asStatement();
+        ];
 
         $nodes[] = if_(
             condition: variable('context')->callMethod('containsErrors'),
@@ -398,9 +401,7 @@ final class ObjectTypeMapper implements TypeMapper
         $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, applyKeyConverters: false);
         $class = $shapedMapper->manipulateMapperClass($class, $settings, $typeMapperFactory);
 
-        $nodes[] = variable('values')->assign(
-            $shapedMapper->formatValueNode(variable('source'), variable('context')),
-        )->asStatement();
+        $nodes = [...$nodes, ...$shapedMapper->buildMappingNodes(variable('source'), variable('context'), variable('values'))];
 
         $nodes[] = if_(
             condition: variable('values')->equals(value(null)),
