@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Compiler;
 
+use CuyZ\Valinor\Compiler\Native\AggregateNode;
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Native\ArrayNode;
 use CuyZ\Valinor\Compiler\Native\CastNode;
@@ -31,6 +32,8 @@ use CuyZ\Valinor\Compiler\Native\VariableNode;
 use CuyZ\Valinor\Compiler\Native\YieldNode;
 use CuyZ\Valinor\Type\Type;
 use CuyZ\Valinor\Utility\ValueDumper;
+
+use function is_array;
 
 /**
  * @param array<Node> $assignments
@@ -227,4 +230,22 @@ function variable(string $name): Node
 function yield_(Node $key, Node $value): YieldNode
 {
     return new YieldNode($key, $value);
+}
+
+function when(
+    bool $condition,
+    array|Node $then = [],
+    array|Node $else = [],
+): Node {
+    if (! is_array($then)) {
+        $then = [$then];
+    }
+
+    if (! is_array($else)) {
+        $else = [$else];
+    }
+
+    return $condition
+        ? new AggregateNode($then)
+        : new AggregateNode($else);
 }

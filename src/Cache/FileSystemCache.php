@@ -48,7 +48,10 @@ final class FileSystemCache implements Cache
         }
 
         try {
-            return (require $filename)(...$arguments); // @phpstan-ignore callable.nonCallable
+            //            $time = microtime(true);
+            $res = (require $filename)(...$arguments); // @phpstan-ignore callable.nonCallable
+            //            echo "REQUIRE — " . (microtime(true) - $time) * 1000 . 'ms' . PHP_EOL;
+            return $res;
         } catch (Error) {
             throw new CorruptedCompiledPhpCacheFile($filename);
         }

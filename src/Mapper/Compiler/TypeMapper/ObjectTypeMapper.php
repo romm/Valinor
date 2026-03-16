@@ -31,6 +31,7 @@ use function array_merge;
 
 use function count;
 use function CuyZ\Valinor\Compiler\{array_, call, dumpValue, if_, negate, param, return_, this, try_, value, variable};
+
 final class ObjectTypeMapper implements TypeMapper
 {
     use TypeMapperMethodName;
@@ -48,10 +49,7 @@ final class ObjectTypeMapper implements TypeMapper
             $target->assign(
                 this()->callMethod(
                     method: $this->methodName(),
-                    arguments: [
-                        $value,
-                        $context,
-                    ],
+                    arguments: [$value, $context],
                 ),
             )->asStatement(),
         ];

@@ -12,7 +12,7 @@ use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Type\FloatType;
 use CuyZ\Valinor\Type\ScalarType;
 
-use function CuyZ\Valinor\Compiler\{call, castTo, dumpValue, if_, logicalOr, value};
+use function CuyZ\Valinor\Compiler\{call, castTo, dumpValue, if_, logicalOr};
 
 final class ScalarTypeMapper implements TypeMapper
 {

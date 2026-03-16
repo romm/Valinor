@@ -20,6 +20,7 @@ use Exception;
 use function array_keys;
 use function count;
 use function CuyZ\Valinor\Compiler\{call, dumpValue, if_, negate, newClass, param, return_, this, throw_, try_, value, variable};
+
 /** @internal */
 final class InterfaceTypeMapper implements TypeMapper
 {
@@ -40,10 +41,7 @@ final class InterfaceTypeMapper implements TypeMapper
             $target->assign(
                 this()->callMethod(
                     method: $this->methodName(),
-                    arguments: [
-                        $value,
-                        $context,
-                    ],
+                    arguments: [$value, $context],
                 ),
             )->asStatement(),
         ];

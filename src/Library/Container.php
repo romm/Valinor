@@ -115,12 +115,12 @@ final class Container
                 $settings,
             ),
 
-            ConverterAnalyzer::class => fn() => new ConverterAnalyzer(
+            ConverterAnalyzer::class => fn () => new ConverterAnalyzer(
                 $this->get(FunctionDefinitionRepository::class),
                 $settings->convertersSortedByPriority(),
             ),
 
-            KeyConverterHandler::class => fn() => new KeyConverterHandler(
+            KeyConverterHandler::class => fn () => new KeyConverterHandler(
                 $this->get(FunctionDefinitionRepository::class),
                 $settings->keyConverters,
             ),

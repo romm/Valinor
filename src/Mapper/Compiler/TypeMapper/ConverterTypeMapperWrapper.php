@@ -19,6 +19,7 @@ use Throwable;
 
 use function CuyZ\Valinor\Compiler\{call, closure, dumpValue, if_, logicalAnd, negate, param, return_, ternary, this, try_, value, variable};
 use function implode;
+
 /** @internal */
 final class ConverterTypeMapperWrapper implements TypeMapper
 {

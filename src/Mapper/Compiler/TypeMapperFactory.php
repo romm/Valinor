@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Mapper\Compiler;
 
 use CuyZ\Valinor\Definition\Repository\ClassDefinitionRepository;
+use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ArrayTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ConverterTypeMapperWrapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\InterfacePassthroughTypeMapper;
@@ -18,7 +19,6 @@ use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ShapedArrayTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\TypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\UndefinedObjectTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\UnionTypeMapper;
-use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Object\Arguments;
 use CuyZ\Valinor\Mapper\Object\Factory\ObjectBuilderFactory;
 use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;

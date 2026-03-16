@@ -12,7 +12,7 @@ use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotMapToPermissiveType;
 use CuyZ\Valinor\Mapper\Tree\Exception\InvalidNodeValue;
 
-use function CuyZ\Valinor\Compiler\{call, dumpValue, if_, value};
+use function CuyZ\Valinor\Compiler\{call, dumpValue, if_};
 
 /** @internal */
 final class UndefinedObjectTypeMapper implements TypeMapper

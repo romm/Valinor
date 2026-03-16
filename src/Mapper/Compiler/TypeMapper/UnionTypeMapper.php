@@ -27,6 +27,7 @@ use function array_map;
 use function count;
 use function CuyZ\Valinor\Compiler\{array_, dumpValue, if_, negate, newClass, param, return_, this, value, variable};
 use function implode;
+
 /** @internal */
 final class UnionTypeMapper implements TypeMapper
 {
@@ -41,10 +42,7 @@ final class UnionTypeMapper implements TypeMapper
             $target->assign(
                 this()->callMethod(
                     method: $this->methodName(),
-                    arguments: [
-                        $value,
-                        $context,
-                    ],
+                    arguments: [$value, $context],
                 ),
             )->asStatement(),
         ];

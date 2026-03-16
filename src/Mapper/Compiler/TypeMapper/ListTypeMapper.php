@@ -7,7 +7,6 @@ namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
-
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
@@ -17,10 +16,12 @@ use CuyZ\Valinor\Type\Types\ListType;
 use CuyZ\Valinor\Type\Types\NonEmptyListType;
 
 use function CuyZ\Valinor\Compiler\{call, forEach_, if_, negate, newClass, param, return_, this, throw_, value, variable};
+
 /** @internal */
 final class ListTypeMapper implements TypeMapper
 {
     use TypeMapperMethodName;
+
     public function __construct(
         private ListType|NonEmptyListType $type,
         private Settings $settings,
@@ -32,10 +33,7 @@ final class ListTypeMapper implements TypeMapper
             $target->assign(
                 this()->callMethod(
                     method: $this->methodName(),
-                    arguments: [
-                        $value,
-                        $context,
-                    ],
+                    arguments: [$value, $context],
                 ),
             )->asStatement(),
         ];
