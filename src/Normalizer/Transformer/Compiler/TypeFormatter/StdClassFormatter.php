@@ -38,7 +38,7 @@ final class StdClassFormatter implements TypeFormatter
                 variable('values')->assign(castToArray(variable('value')))->asStatement(),
                 if_(
                     condition: variable('values')->equals(value([])),
-                    body: return_(
+                    then: return_(
                         className(EmptyObject::class)->callStaticMethod('get'),
                     ),
                 ),

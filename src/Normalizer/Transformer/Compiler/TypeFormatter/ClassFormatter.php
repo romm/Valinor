@@ -156,7 +156,7 @@ final class ClassFormatter implements TypeFormatter
         return [
             if_(
                 condition: call('isset', [variable('references')->key(variable('value'))]),
-                body: throw_(
+                then: throw_(
                     newClass(CircularReferenceFoundDuringNormalization::class, variable('value')),
                 )->asStatement(),
             ),

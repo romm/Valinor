@@ -81,28 +81,6 @@ final class TreeMapperRootNode extends Node
 
     private function addMapMethod(AnonymousClassNode $classNode, TypeMapper $typeMapper): AnonymousClassNode
     {
-        $formatNodes = $typeMapper->buildMappingNodes(
-            variable('source'),
-            variable('context'),
-            variable('result'),
-        );
-
-        $mapBody = [
-            variable('context')->assign(newClass(MappingContext::class))->asStatement(),
-            variable('result')->assign(value(null))->asStatement(),
-            ...$formatNodes,
-            if_(
-                condition: variable('context')->callMethod('containsErrors'),
-                body: throw_(newClass(
-                    TypeTreeMapperError::class,
-                    variable('source'),
-                    value($this->type->toString()),
-                    variable('context')->access('messages')->callMethod('getArrayCopy'),
-                ))->asStatement(),
-            ),
-            return_(variable('result')),
-        ];
-
         return $classNode->withMethod(
             name: 'map',
             visibility: 'public',
@@ -111,7 +89,25 @@ final class TreeMapperRootNode extends Node
                 param('source', 'mixed'),
             ],
             returnType: 'mixed',
-            body: $mapBody,
+            body: [
+                variable('context')->assign(newClass(MappingContext::class))->asStatement(),
+                variable('result')->assign(value(null))->asStatement(),
+                ...$typeMapper->buildMappingNodes(
+                    variable('source'),
+                    variable('context'),
+                    variable('result'),
+                ),
+                if_(
+                    condition: variable('context')->callMethod('containsErrors'),
+                    then: throw_(newClass(
+                        TypeTreeMapperError::class,
+                        variable('source'),
+                        value($this->type->toString()),
+                        variable('context')->access('messages')->callMethod('getArrayCopy'),
+                    ))->asStatement(),
+                ),
+                return_(variable('result')),
+            ],
         );
     }
 }

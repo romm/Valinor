@@ -54,7 +54,7 @@ final class UnionFormatter implements TypeFormatter
 
             $nodes[] = if_(
                 condition: new TypeAcceptNode(variable('value'), $definition->type),
-                body: return_(
+                then: return_(
                     $definition->typeFormatter()->formatValueNode(variable('value')),
                 ),
             );

@@ -77,7 +77,7 @@ final class TraversableFormatter implements TypeFormatter
             body: [
                 if_(
                     condition: call('is_array', [variable('value')]),
-                    body: return_(
+                    then: return_(
                         call(
                             name: 'array_map',
                             arguments: [

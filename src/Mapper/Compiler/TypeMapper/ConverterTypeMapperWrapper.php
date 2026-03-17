@@ -126,7 +126,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
             // Post-validate: check result matches target type
             if_(
                 condition: negate($this->targetType->compiledAccept(variable('converterResult'))->wrap()),
-                body: [
+                then: [
                     new AddMessageNode(variable('context'), InvalidNodeValue::from($this->targetType), $this->targetType->toString(), dumpValue(variable('converterResult'))),
                     return_(value(null)),
                 ],
@@ -138,7 +138,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
 
         return if_(
             condition: $condition,
-            body: try_(...$tryBody)
+            then: try_(...$tryBody)
                 ->catches(Throwable::class, ...$catchBody)
                 ->asStatement(),
         );
@@ -190,7 +190,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
             // Post-validate
             if_(
                 condition: negate($this->targetType->compiledAccept(variable('converterResult'))->wrap()),
-                body: [
+                then: [
                     new AddMessageNode(variable('context'), InvalidNodeValue::from($this->targetType), $this->targetType->toString(), dumpValue(variable('converterResult'))),
                     return_(value(null)),
                 ],
@@ -202,7 +202,7 @@ final class ConverterTypeMapperWrapper implements TypeMapper
 
         return if_(
             condition: $condition,
-            body: try_(...$tryBody)
+            then: try_(...$tryBody)
                 ->catches(Throwable::class, ...$catchBody)
                 ->asStatement(),
         );
@@ -221,11 +221,11 @@ final class ConverterTypeMapperWrapper implements TypeMapper
             // just return null - errors are already recorded
             if_(
                 condition: variable('context')->callMethod('containsErrors'),
-                body: return_(value(null)),
+                then: return_(value(null)),
             ),
             if_(
                 condition: negate(variable('exception')->instanceOf(Message::class)),
-                body: variable('exception')->assign(
+                then: variable('exception')->assign(
                     this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
                 )->asStatement(),
             ),

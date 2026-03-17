@@ -24,15 +24,14 @@ final class InterfacePassthroughTypeMapper implements TypeMapper
         return [
             if_(
                 condition: $value->instanceOf($this->type->className()),
-                body: $target->assign($value)->asStatement(),
-            )->else([
-                throw_(
+                then: $target->assign($value)->asStatement(),
+                else: throw_(
                     newClass(
                         CannotResolveObjectType::class,
                         value($this->type->className()),
                     ),
                 )->asStatement(),
-            ]),
+            )
         ];
     }
 

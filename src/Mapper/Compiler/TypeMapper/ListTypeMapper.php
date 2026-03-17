@@ -12,10 +12,11 @@ use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\InvalidIterableKeyType;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceIsEmptyList;
+use CuyZ\Valinor\Mapper\Tree\Exception\SourceMustBeIterable;
 use CuyZ\Valinor\Type\Types\ListType;
 use CuyZ\Valinor\Type\Types\NonEmptyListType;
 
-use function CuyZ\Valinor\Compiler\{call, forEach_, if_, negate, newClass, param, return_, this, throw_, value, variable};
+use function CuyZ\Valinor\Compiler\{call, dumpValue, forEach_, if_, logicalAnd, negate, newClass, param, return_, this, throw_, value, variable, when};
 
 /** @internal */
 final class ListTypeMapper implements TypeMapper
@@ -53,70 +54,131 @@ final class ListTypeMapper implements TypeMapper
         $subMapper = $typeMapperFactory->for($this->type->subType());
         $class = $subMapper->manipulateMapperClass($class, $typeMapperFactory);
 
-        $nodes = IterableValidationNodes::build($this->settings, $this->type);
-
-        // Check non-empty for NonEmptyListType
-        if ($this->type instanceof NonEmptyListType) {
-            $nodes[] = if_(
-                condition: variable('source')->equals(value([])),
-                body: [
-                    new AddMessageNode(variable('context'), new SourceIsEmptyList(), $this->type->toString(), value('[]')),
-                    return_(value(null)),
-                ],
-            );
-        }
-
-        // Initialize result array
-        $nodes[] = variable('result')->assign(value([]))->asStatement();
-
-        // forEach loop over source: validate keys and map values
-        $forEachBody = [];
-
-        // Validate key type
-        $forEachBody[] = if_(
-            condition: negate(call('is_string', [variable('key')]))
-                ->and(negate(call('is_int', [variable('key')]))),
-            body: throw_(newClass(InvalidIterableKeyType::class, variable('key'), variable('context')->access('path')))->asStatement(),
-        );
-
-        // Map value through sub-type mapper
-        $forEachBody = [
-            ...$forEachBody,
-            ...$subMapper->buildMappingNodes(
-                variable('value'),
-                variable('context')->callMethod('sub', [
-                    call('strval', [variable('key')]),
-                ]),
-                variable('result')->key(variable('key')),
-            ),
-        ];
-
-        $nodes[] = forEach_(
-            value: variable('source'),
-            key: 'key',
-            item: 'value',
-            body: $forEachBody,
-        );
-
-        // Check for errors
-        $nodes[] = if_(
-            condition: variable('context')->callMethod('containsErrors'),
-            body: return_(value(null)),
-        );
-
-        // Return array_values to ensure sequential list keys
-        $nodes[] = return_(
-            call('array_values', [variable('result')]),
-        );
-
         return $class->withMethod(
             name: $methodName,
             parameters: [
                 param('source', 'mixed'),
                 param('context', MappingContext::class),
             ],
-            returnType: '?array',
-            body: $nodes,
+            returnType: '?' . $this->type->nativeType()->toString(),
+            body: [
+                // Handling null values
+                // ====================
+                //
+                // The behaviour depends on the `allowUndefinedValues` setting.
+                when(
+                    condition: $this->settings->allowUndefinedValues,
+
+                    // if ($source === null) {
+                    //     $source = [];
+                    // }
+                    then: if_(
+                        condition: variable('source')->equals(value(null)),
+                        then: variable('source')->assign(value([]))->asStatement(),
+                    ),
+
+                    // if ($source === null) {
+                    //     $context->addMessage('source must be iterable');
+                    // }
+                    else: if_(
+                        condition: variable('source')->equals(value(null)),
+                        then: [
+                            new AddMessageNode(variable('context'), new SourceMustBeIterable(null), $this->type->toString(), value('*missing*')),
+                            return_(value(null)),
+                        ],
+                    ),
+                ),
+
+                // Handling non-iterable
+                // =====================
+                //
+                // if (! is_iterable($source)) {
+                //     $context->addMessage('source must be iterable');
+                // }
+                if_(
+                    condition: negate(call('is_iterable', [variable('source')])),
+                    then: [
+                        new AddMessageNode(variable('context'), new SourceMustBeIterable('value'), $this->type->toString(), dumpValue(variable('source'))),
+                        return_(value(null)),
+                    ],
+                ),
+
+                // Handling empty list
+                // ===================
+                //
+                // Only when the target type is a non-empty-list.
+                //
+                // if ($source === []) {
+                //     $context->addMessage('source is empty list');
+                // }
+                when(
+                    condition: $this->type instanceof NonEmptyListType,
+                    then: if_(
+                        condition: variable('source')->equals(value([])),
+                        then: [
+                            new AddMessageNode(variable('context'), new SourceIsEmptyList(), $this->type->toString(), value('[]')),
+                            return_(value(null)),
+                        ],
+                    ),
+                ),
+
+                // Initializing the result
+                // =======================
+                //
+                // $result = [];
+                variable('result')->assign(value([]))->asStatement(),
+
+                // Looping over the source
+                // =======================
+                //
+                // foreach ($source as $key => $value) {
+                //     if (! is_string($key) && ! is_int($key)) {
+                //         throw new InvalidIterableKeyType($key, $context->path());
+                //     }
+                //
+                //     $result[$key] = …;
+                // }
+                forEach_(
+                    value: variable('source'),
+                    key: 'key',
+                    item: 'value',
+                    body: [
+                        if_(
+                            condition: logicalAnd(
+                                negate(call('is_string', [variable('key')])),
+                                negate(call('is_int', [variable('key')])),
+                            ),
+                            then: throw_(newClass(InvalidIterableKeyType::class, variable('key'), variable('context')->access('path')))->asStatement(),
+                        ),
+                        ...$subMapper->buildMappingNodes(
+                            value: variable('value'),
+                            context: variable('context')->callMethod('sub', [
+                                call('strval', [variable('key')]),
+                            ]),
+                            target: variable('result')->key(variable('key')),
+                        ),
+                    ],
+                ),
+
+                // Checking if errors occurred
+                // ===========================
+                //
+                // if ($context->containsErrors()) {
+                //     return null;
+                // }
+                if_(
+                    condition: variable('context')->callMethod('containsErrors'),
+                    then: return_(value(null)),
+                ),
+
+                // Returning the result
+                // ====================
+                //
+                // return array_values($result);
+                return_(
+                    call('array_values', [variable('result')]),
+                ),
+            ],
         );
     }
 

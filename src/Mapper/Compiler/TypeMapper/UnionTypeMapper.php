@@ -76,7 +76,7 @@ final class UnionTypeMapper implements TypeMapper
         if ($hasNull) {
             $nodes[] = if_(
                 condition: variable('source')->equals(value(null)),
-                body: return_(value(null)),
+                then: return_(value(null)),
             );
         }
 
@@ -116,7 +116,7 @@ final class UnionTypeMapper implements TypeMapper
             // If no errors, return the result
             $nodes[] = if_(
                 condition: negate(variable('subContext')->callMethod('containsErrors')),
-                body: return_(variable('subResult')),
+                then: return_(variable('subResult')),
             );
 
             // Failed — decide whether to propagate specific errors or show union error.

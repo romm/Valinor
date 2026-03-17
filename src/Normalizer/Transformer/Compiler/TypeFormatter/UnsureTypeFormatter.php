@@ -62,7 +62,7 @@ final class UnsureTypeFormatter implements TypeFormatter
                     condition: negate(
                         (new TypeAcceptNode(variable('value'), $this->unsureType->nativeType()))->wrap(),
                     ),
-                    body: return_($defaultDefinition->typeFormatter()->formatValueNode(variable('value'))),
+                    then: return_($defaultDefinition->typeFormatter()->formatValueNode(variable('value'))),
                 ),
                 return_(
                     $this->delegate->formatValueNode(variable('value')),

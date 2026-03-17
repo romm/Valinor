@@ -66,7 +66,7 @@ final class MixedFormatter implements TypeFormatter
 
             $nodes[] = if_(
                 condition: new TypeAcceptNode(variable('value'), $definition->type),
-                body: return_($definition->typeFormatter()->formatValueNode(variable('value'))),
+                then: return_($definition->typeFormatter()->formatValueNode(variable('value'))),
             );
         }
 

@@ -75,7 +75,7 @@ final class ArrayTypeMapper implements TypeMapper
                     // }
                     then: if_(
                         condition: variable('source')->equals(value(null)),
-                        body: variable('source')->assign(value([]))->asStatement(),
+                        then: variable('source')->assign(value([]))->asStatement(),
                     ),
 
                     // if ($source === null) {
@@ -83,7 +83,7 @@ final class ArrayTypeMapper implements TypeMapper
                     // }
                     else: if_(
                         condition: variable('source')->equals(value(null)),
-                        body: [
+                        then: [
                             new AddMessageNode(variable('context'), new SourceMustBeIterable(null), $this->type->toString(), value('*missing*')),
                             return_(value(null)),
                         ],
@@ -98,7 +98,7 @@ final class ArrayTypeMapper implements TypeMapper
                 // }
                 if_(
                     condition: negate(call('is_iterable', [variable('source')])),
-                    body: [
+                    then: [
                         new AddMessageNode(variable('context'), new SourceMustBeIterable('value'), $this->type->toString(), dumpValue(variable('source'))),
                         return_(value(null)),
                     ],
@@ -116,7 +116,7 @@ final class ArrayTypeMapper implements TypeMapper
                     condition: $this->type instanceof NonEmptyArrayType,
                     then: if_(
                         condition: variable('source')->equals(value([])),
-                        body: [
+                        then: [
                             new AddMessageNode(variable('context'), new SourceIsEmptyArray(), $this->type->toString(), value('[]')),
                             return_(value(null)),
                         ],
@@ -149,7 +149,7 @@ final class ArrayTypeMapper implements TypeMapper
                                 negate(call('is_string', [variable('key')])),
                                 negate(call('is_int', [variable('key')])),
                             ),
-                            body: throw_(newClass(InvalidIterableKeyType::class, variable('key'), variable('context')->access('path')))->asStatement(),
+                            then: throw_(newClass(InvalidIterableKeyType::class, variable('key'), variable('context')->access('path')))->asStatement(),
                         ),
                         ...$subMapper->buildMappingNodes(
                             value: variable('value'),
@@ -169,7 +169,7 @@ final class ArrayTypeMapper implements TypeMapper
                 // }
                 if_(
                     condition: variable('context')->callMethod('containsErrors'),
-                    body: return_(value(null)),
+                    then: return_(value(null)),
                 ),
 
                 // Returning the result

@@ -26,10 +26,9 @@ final class UndefinedObjectTypeMapper implements TypeMapper
         return [
             if_(
                 condition: call('is_object', [$value]),
-                body: $target->assign($value)->asStatement(),
-            )->else([
-                new AddMessageNode($context, new InvalidNodeValue(), 'object', dumpValue($value)),
-            ]),
+                then: $target->assign($value)->asStatement(),
+                else: new AddMessageNode($context, new InvalidNodeValue(), 'object', dumpValue($value)),
+            ),
         ];
     }
 

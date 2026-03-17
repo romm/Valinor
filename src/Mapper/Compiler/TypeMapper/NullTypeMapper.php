@@ -20,7 +20,7 @@ final class NullTypeMapper implements TypeMapper
         return [
             if_(
                 condition: $value->different(value(null)),
-                body: new AddMessageNode($context, new SourceIsNotNull(), 'null', dumpValue($value)),
+                then: new AddMessageNode($context, new SourceIsNotNull(), 'null', dumpValue($value)),
             ),
             $target->assign(value(null))->asStatement(),
         ];

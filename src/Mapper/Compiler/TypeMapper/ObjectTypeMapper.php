@@ -73,14 +73,14 @@ final class ObjectTypeMapper implements TypeMapper
         $nodes = [
             if_(
                 condition: $this->class->type->compiledAccept(variable('source')),
-                body: return_(variable('source')),
+                then: return_(variable('source')),
             ),
         ];
 
         if ($this->settings->allowUndefinedValues) {
             $nodes[] = if_(
                 condition: variable('source')->equals(value(null)),
-                body: variable('source')->assign(value([]))->asStatement(),
+                then: variable('source')->assign(value([]))->asStatement(),
             );
         }
 
@@ -180,7 +180,7 @@ final class ObjectTypeMapper implements TypeMapper
                         value($argument->name()),
                         variable('values'),
                     ])),
-                    body: variable('values')->key(value($argument->name()))->assign(
+                    then: variable('values')->key(value($argument->name()))->assign(
                         value($argument->defaultValue()),
                     )->asStatement(),
                 );
@@ -220,13 +220,13 @@ final class ObjectTypeMapper implements TypeMapper
                 ...$shapedMapper->buildMappingNodes(variable('source'), variable('isolatedCtx'), variable('values')),
                 if_(
                     condition: negate(variable('isolatedCtx')->callMethod('containsErrors')),
-                    body: $buildNodes,
+                    then: $buildNodes,
                 ),
             ];
 
             $nodes[] = if_(
                 condition: $keyedCondition,
-                body: $keyedBody,
+                then: $keyedBody,
             );
 
             // Flat path with isolation
@@ -245,7 +245,7 @@ final class ObjectTypeMapper implements TypeMapper
 
             $nodes[] = if_(
                 condition: negate(variable('isolatedCtx')->callMethod('containsErrors')),
-                body: [
+                then: [
                     variable('values')->assign(
                         array_([
                             $argName => variable('mappedValue'),
@@ -262,7 +262,7 @@ final class ObjectTypeMapper implements TypeMapper
             $nodes = [...$nodes, ...$shapedMapper->buildMappingNodes(variable('source'), variable('isolatedCtx'), variable('values'))];
             $nodes[] = if_(
                 condition: negate(variable('isolatedCtx')->callMethod('containsErrors')),
-                body: $buildNodes,
+                then: $buildNodes,
             );
         }
 
@@ -303,7 +303,7 @@ final class ObjectTypeMapper implements TypeMapper
                     value($argName),
                     variable('values'),
                 ])),
-                body: variable('values')->key(value($argName))->assign(
+                then: variable('values')->key(value($argName))->assign(
                     value($argument->defaultValue()),
                 )->asStatement(),
             );
@@ -339,11 +339,11 @@ final class ObjectTypeMapper implements TypeMapper
         // Shaped array path: delegate to ShapedArrayTypeMapper
         $nodes[] = if_(
             condition: $keyedCondition,
-            body: [
+            then: [
                 ...$shapedMapper->buildMappingNodes(variable('source'), variable('context'), variable('values')),
                 if_(
                     condition: variable('values')->equals(value(null)),
-                    body: return_(value(null)),
+                    then: return_(value(null)),
                 ),
                 ...$defaultAndBuildNodes,
             ],
@@ -361,7 +361,7 @@ final class ObjectTypeMapper implements TypeMapper
 
         $nodes[] = if_(
             condition: variable('context')->callMethod('containsErrors'),
-            body: return_(value(null)),
+            then: return_(value(null)),
         );
 
         $nodes[] = variable('values')->assign(
@@ -395,7 +395,7 @@ final class ObjectTypeMapper implements TypeMapper
 
         $nodes[] = if_(
             condition: variable('values')->equals(value(null)),
-            body: return_(value(null)),
+            then: return_(value(null)),
         );
 
         // Apply default values for optional arguments
@@ -407,7 +407,7 @@ final class ObjectTypeMapper implements TypeMapper
                         value($argument->name()),
                         variable('values'),
                     ])),
-                    body: variable('values')->key(value($argument->name()))->assign(
+                    then: variable('values')->key(value($argument->name()))->assign(
                         value($argument->defaultValue()),
                     )->asStatement(),
                 );

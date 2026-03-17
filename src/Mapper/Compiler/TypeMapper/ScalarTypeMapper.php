@@ -39,21 +39,22 @@ final class ScalarTypeMapper implements TypeMapper
             return [
                 if_(
                     condition: $acceptCondition,
-                    body: $assignNode,
-                )->else($errorNodes),
+                    then: $assignNode,
+                    else: $errorNodes,
+                ),
             ];
         }
 
         return [
             if_(
                 condition: $acceptCondition,
-                body: $assignNode,
-            )->else([
-                if_(
+                then: $assignNode,
+                else: if_(
                     condition: $this->type->compiledCanCast($value),
-                    body: $target->assign($this->type->compiledCast($value))->asStatement(),
-                )->else($errorNodes),
-            ]),
+                    then: $target->assign($this->type->compiledCast($value))->asStatement(),
+                    else: $errorNodes
+                ),
+            ),
         ];
     }
 

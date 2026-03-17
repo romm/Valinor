@@ -106,11 +106,15 @@ function forEach_(Node $value, string $key, string $item, Node|array $body): For
 }
 
 /**
- * @param Node|non-empty-list<Node> $body
+ * @param Node|list<Node> $then
+ * @param Node|list<Node> $else
  */
-function if_(Node $condition, Node|array $body): IfNode
-{
-    return new IfNode($condition, $body);
+function if_(
+    Node $condition,
+    Node|array $then = [],
+    Node|array $else = [],
+): IfNode {
+    return new IfNode($condition, $then, $else);
 }
 
 /**

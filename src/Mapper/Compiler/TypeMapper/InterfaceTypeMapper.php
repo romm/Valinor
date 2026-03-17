@@ -95,7 +95,7 @@ final class InterfaceTypeMapper implements TypeMapper
 
             $nodes[] = if_(
                 condition: variable('className')->equals(value($className)),
-                body: [...$formatNodes, return_(variable('result'))],
+                then: [...$formatNodes, return_(variable('result'))],
             );
         }
 
@@ -162,7 +162,7 @@ final class InterfaceTypeMapper implements TypeMapper
             $nodes[] = if_(
                 condition: call('is_iterable', [variable('source')])
                     ->and(negate(call('is_array', [variable('source')]))),
-                body: variable('source')->assign(
+                then: variable('source')->assign(
                     call('iterator_to_array', [variable('source')]),
                 )->asStatement(),
             );
@@ -182,7 +182,7 @@ final class InterfaceTypeMapper implements TypeMapper
             // If source is an array with the arg key, extract it
             $nodes[] = if_(
                 condition: $keyedCondition,
-                body: $argMapper->buildMappingNodes(
+                then: $argMapper->buildMappingNodes(
                     variable('source')->key(value($argName)),
                     variable('inferContext')->callMethod('sub', [value($argName)]),
                     variable('inferArg'),
@@ -192,7 +192,7 @@ final class InterfaceTypeMapper implements TypeMapper
             // Otherwise, use source directly (scalar flattening)
             $nodes[] = if_(
                 condition: negate($keyedCondition->wrap()),
-                body: $argMapper->buildMappingNodes(
+                then: $argMapper->buildMappingNodes(
                     variable('source'),
                     variable('inferContext'),
                     variable('inferArg'),
@@ -202,7 +202,7 @@ final class InterfaceTypeMapper implements TypeMapper
             // If argument mapping failed, propagate errors
             $nodes[] = if_(
                 condition: variable('inferContext')->callMethod('containsErrors'),
-                body: [
+                then: [
                     variable('context')->callMethod('mergeFrom', [
                         variable('inferContext'),
                     ])->asStatement(),
@@ -240,7 +240,7 @@ final class InterfaceTypeMapper implements TypeMapper
             $nodes[] = if_(
                 condition: call('is_iterable', [variable('source')])
                     ->and(negate(call('is_array', [variable('source')]))),
-                body: variable('source')->assign(
+                then: variable('source')->assign(
                     call('iterator_to_array', [variable('source')]),
                 )->asStatement(),
             );
@@ -249,7 +249,7 @@ final class InterfaceTypeMapper implements TypeMapper
             $dumpedType = $typeMapperFactory->dumpType($this->type);
             $nodes[] = if_(
                 condition: negate(call('is_array', [variable('source')])),
-                body: [
+                then: [
                     new AddMessageNode(variable('context'), new SourceMustBeIterable('value'), $this->type->toString(), dumpValue(variable('source')), $dumpedType),
                     return_(value(null)),
                 ],
@@ -270,7 +270,7 @@ final class InterfaceTypeMapper implements TypeMapper
                         value($argName),
                         variable('source'),
                     ]),
-                    body: $argMapper->buildMappingNodes(
+                    then: $argMapper->buildMappingNodes(
                         variable('source')->key(value($argName)),
                         variable('inferContext')->callMethod('sub', [value($argName)]),
                         variable('inferArg_' . $argName),
@@ -281,7 +281,7 @@ final class InterfaceTypeMapper implements TypeMapper
             // If argument mapping failed, propagate errors
             $nodes[] = if_(
                 condition: variable('inferContext')->callMethod('containsErrors'),
-                body: [
+                then: [
                     variable('context')->callMethod('mergeFrom', [
                         variable('inferContext'),
                     ])->asStatement(),

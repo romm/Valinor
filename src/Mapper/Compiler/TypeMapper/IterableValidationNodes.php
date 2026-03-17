@@ -31,12 +31,12 @@ final class IterableValidationNodes
         if ($settings->allowUndefinedValues) {
             $nodes[] = if_(
                 condition: variable('source')->equals(value(null)),
-                body: variable('source')->assign(value([]))->asStatement(),
+                then: variable('source')->assign(value([]))->asStatement(),
             );
         } else {
             $nodes[] = if_(
                 condition: variable('source')->equals(value(null)),
-                body: [
+                then: [
                     new AddMessageNode(variable('context'), new SourceMustBeIterable(null), $type->toString(), value('*missing*'), $dumpedType),
                     return_(value(null)),
                 ],
@@ -45,7 +45,7 @@ final class IterableValidationNodes
 
         $nodes[] = if_(
             condition: negate(call('is_iterable', [variable('source')])),
-            body: [
+            then: [
                 new AddMessageNode(variable('context'), new SourceMustBeIterable('value'), $type->toString(), dumpValue(variable('source')), $dumpedType),
                 return_(value(null)),
             ],

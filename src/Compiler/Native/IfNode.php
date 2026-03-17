@@ -12,57 +12,45 @@ use function is_array;
 /** @internal */
 final class IfNode extends Node
 {
-    /** @var Node|non-empty-list<Node>|null */
-    private Node|array|null $else = null;
-
     public function __construct(
         private Node $condition,
-        /** @var Node|non-empty-list<Node> */
-        private Node|array $body,
+        /** @var Node|list<Node> */
+        private Node|array $then = [],
+        /** @var Node|list<Node> */
+        private Node|array $else = [],
     ) {}
-
-    public function else(Node|array $else): self
-    {
-        $clone = clone $this;
-        $clone->else = $else;
-
-        return $clone;
-    }
 
     public function compile(Compiler $compiler): Compiler
     {
-        $body = $this->body;
+        $then = $this->then;
+        $else = $this->else;
 
-        if (! is_array($body)) {
-            $body = [$body];
+        if (! is_array($then)) {
+            $then = [$then];
+        }
+
+        if (! is_array($else)) {
+            $else = [$else];
         }
 
         $condition = $compiler->sub()->compile($this->condition)->code();
-        $body = $compiler->sub()->indent()->compile(...$body)->code();
-        $else = '';
+        $thenBody = $compiler->sub()->indent()->compile(...$then)->code();
+        $closing = '}';
 
-        if ($this->else !== null) {
-            $else = $this->else;
-
-            if (! is_array($else)) {
-                $else = [$else];
-            }
-
+        if ($else !== []) {
             $elseBody = $compiler->sub()->indent()->compile(...$else)->code();
 
-            $else = <<<PHP
-            else {
+            $closing = <<<PHP
+            } else {
             $elseBody
             }
             PHP;
         }
 
-        $closing = $else === '' ? '}' : "} $else";
-
         return $compiler->write(
             <<<PHP
             if ($condition) {
-            $body
+            $thenBody
             $closing
             PHP,
         );

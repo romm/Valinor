@@ -53,20 +53,21 @@ final class KeyConverterNodes
         $tryBody = array_merge($converterNodes, [
             if_(
                 condition: call('array_key_exists', [$keyVarNode, variable('nameMap')]),
-                body: new AddMessageNode(
+                then: new AddMessageNode(
                     variable('context')->callMethod('sub', [call('strval', [variable('origKey')])]),
                     newClass(KeysCollision::class, variable('nameMap')->key($keyVarNode), $keyVarNode),
                     '?',
                     call('strval', [variable('origKey')]),
                 ),
-            )->else([
-                variable('convertedSource')->key($keyVarNode)->assign(
-                    variable('origVal'),
-                )->asStatement(),
-                variable('nameMap')->key($keyVarNode)->assign(
-                    call('strval', [variable('origKey')]),
-                )->asStatement(),
-            ]),
+                else: [
+                    variable('convertedSource')->key($keyVarNode)->assign(
+                        variable('origVal'),
+                    )->asStatement(),
+                    variable('nameMap')->key($keyVarNode)->assign(
+                        call('strval', [variable('origKey')]),
+                    )->asStatement(),
+                ]
+            ),
         ]);
 
         $forEachBody = [
@@ -78,7 +79,7 @@ final class KeyConverterNodes
                 // If exception is already a Message, use it directly; otherwise filter
                 if_(
                     condition: negate(variable('exception')->instanceOf(Message::class)),
-                    body: variable('exception')->assign(
+                    then: variable('exception')->assign(
                         this()->access('exceptionFilter')->wrap()->call([variable('exception')]),
                     )->asStatement(),
                 ),
@@ -113,7 +114,7 @@ final class KeyConverterNodes
             // Wrap in is_array check (ObjectTypeMapper use case)
             $nodes[] = if_(
                 condition: call('is_array', [variable('source')]),
-                body: $keyConverterBody,
+                then: $keyConverterBody,
             );
         } else {
             // No wrapper (ShapedArrayTypeMapper use case)
@@ -123,7 +124,7 @@ final class KeyConverterNodes
         // Early return if key conversion caused errors
         $nodes[] = if_(
             condition: variable('context')->callMethod('containsErrors'),
-            body: return_(value(null)),
+            then: return_(value(null)),
         );
 
         return $nodes;

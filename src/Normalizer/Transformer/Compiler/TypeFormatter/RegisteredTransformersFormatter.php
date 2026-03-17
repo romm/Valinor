@@ -64,7 +64,7 @@ final class RegisteredTransformersFormatter implements TypeFormatter
             ...array_map(
                 fn (int $key, Type $transformerType) => if_(
                     condition: new TypeAcceptNode(variable('value'), $transformerType),
-                    body: variable('next')->assign(
+                    then: variable('next')->assign(
                         shortClosure(
                             return: this()
                                 ->access('transformers')
