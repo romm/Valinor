@@ -137,7 +137,7 @@ final class ArrayTypeMapper implements TypeMapper
                 //         throw new InvalidIterableKeyType($key, $context->path());
                 //     }
                 //
-                //     $result[$key] = …;
+                //     $result[$key] = $this->mapSubType($value, $context->sub($key));
                 // }
                 forEach_(
                     value: variable('source'),

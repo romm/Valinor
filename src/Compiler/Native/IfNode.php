@@ -40,11 +40,13 @@ final class IfNode extends Node
         if ($else !== []) {
             $elseBody = $compiler->sub()->indent()->compile(...$else)->code();
 
-            $closing = <<<PHP
-            } else {
-            $elseBody
+            if (trim($elseBody) !== '') {
+                $closing = <<<PHP
+                } else {
+                $elseBody
+                }
+                PHP;
             }
-            PHP;
         }
 
         return $compiler->write(
