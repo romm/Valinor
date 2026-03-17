@@ -48,16 +48,14 @@ final class ArrayNodeBuilder implements NodeBuilder
         $errors = [];
 
         foreach ($value as $key => $val) {
-            if (! is_string($key) && ! is_int($key)) {
-                throw new InvalidIterableKeyType($key, $shell->path);
-            }
-
-            $child = $shell->child((string)$key, $subType);
-
-            if (! $keyType->accepts($key)) {
-                $children[$key] = $child->error(new InvalidArrayKey($key, $keyType));
+            if ($keyType->accepts($key)) {
+                $children[$key] = $shell->child((string)$key, $subType)->withValue($val)->build();
             } else {
-                $children[$key] = $child->withValue($val)->build();
+                if (! is_string($key) && ! is_int($key)) {
+                    throw new InvalidIterableKeyType($key, $shell->path);
+                }
+
+                $children[$key] = $shell->child((string)$key, $subType)->error(new InvalidArrayKey($key, $keyType));
             }
 
             if (! $children[$key]->isValid()) {

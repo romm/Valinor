@@ -21,6 +21,7 @@ use CuyZ\Valinor\Compiler\Native\NegateNode;
 use CuyZ\Valinor\Compiler\Native\NewClassNode;
 use CuyZ\Valinor\Compiler\Native\ParameterDeclarationNode;
 use CuyZ\Valinor\Compiler\Native\PhpFileNode;
+use CuyZ\Valinor\Compiler\Native\PostIncrementNode;
 use CuyZ\Valinor\Compiler\Native\PropertyDeclarationNode;
 use CuyZ\Valinor\Compiler\Native\ReturnNode;
 use CuyZ\Valinor\Compiler\Native\ShortClosureNode;
@@ -157,6 +158,11 @@ function newClass(string $className, Node ...$arguments): NewClassNode
 function param(string $name, string $type): ParameterDeclarationNode
 {
     return new ParameterDeclarationNode($name, $type);
+}
+
+function postIncrement(Node $node): PostIncrementNode
+{
+    return new PostIncrementNode($node);
 }
 
 /**

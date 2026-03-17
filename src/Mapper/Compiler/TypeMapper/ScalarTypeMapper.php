@@ -11,6 +11,7 @@ use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Type\FloatType;
 use CuyZ\Valinor\Type\ScalarType;
+use CuyZ\Valinor\Type\Types\NativeFloatType;
 
 use function CuyZ\Valinor\Compiler\{call, castTo, dumpValue, if_, logicalOr};
 
@@ -23,7 +24,7 @@ final class ScalarTypeMapper implements TypeMapper
 
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
     {
-        $acceptCondition = $this->type instanceof FloatType
+        $acceptCondition = $this->type instanceof NativeFloatType
             ? logicalOr($this->type->compiledAccept($value), call('is_int', [$value]))
             : $this->type->compiledAccept($value);
 

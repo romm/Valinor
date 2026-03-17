@@ -13,11 +13,12 @@ use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\InvalidIterableKeyType;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceIsEmptyArray;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceMustBeIterable;
+use CuyZ\Valinor\Mapper\Tree\Message\BasicErrorMessage;
 use CuyZ\Valinor\Type\Types\ArrayType;
 use CuyZ\Valinor\Type\Types\IterableType;
 use CuyZ\Valinor\Type\Types\NonEmptyArrayType;
 
-use function CuyZ\Valinor\Compiler\{call, dumpValue, forEach_, if_, logicalAnd, negate, newClass, param, return_, this, throw_, value, variable, when};
+use function CuyZ\Valinor\Compiler\{array_, call, dumpValue, forEach_, if_, logicalAnd, negate, newClass, param, return_, this, throw_, value, variable, when};
 
 /** @internal */
 final class ArrayTypeMapper implements TypeMapper
@@ -65,11 +66,12 @@ final class ArrayTypeMapper implements TypeMapper
             body: [
                 // Handling null values
                 // ====================
-                //
-                // The behaviour depends on the `allowUndefinedValues` setting.
                 when(
                     condition: $this->settings->allowUndefinedValues,
 
+                    // When `allowUndefinedValues` is on
+                    // =================================
+                    //
                     // if ($source === null) {
                     //     $source = [];
                     // }
@@ -78,6 +80,9 @@ final class ArrayTypeMapper implements TypeMapper
                         then: variable('source')->assign(value([]))->asStatement(),
                     ),
 
+                    // When `allowUndefinedValues` is off
+                    // ==================================
+                    //
                     // if ($source === null) {
                     //     $context->addMessage('source must be iterable');
                     // }
@@ -133,32 +138,53 @@ final class ArrayTypeMapper implements TypeMapper
                 // =======================
                 //
                 // foreach ($source as $key => $value) {
-                //     if (! is_string($key) && ! is_int($key)) {
-                //         throw new InvalidIterableKeyType($key, $context->path());
-                //     }
+                //     if ($keyTypeAccepts($key)) {
+                //         $result[$key] = $this->mapSubType($value, $context->sub($key));
+                //     } else {
+                //         if (! is_string($key) && ! is_int($key)) {
+                //             throw new InvalidIterableKeyType($key, $context->path());
+                //         }
                 //
-                //     $result[$key] = $this->mapSubType($value, $context->sub($key));
+                //         $context->sub($key)->addMessage('invalid array key');
+                //     }
                 // }
                 forEach_(
                     value: variable('source'),
                     key: 'key',
                     item: 'value',
-                    body: [
-                        if_(
-                            condition: logicalAnd(
-                                negate(call('is_string', [variable('key')])),
-                                negate(call('is_int', [variable('key')])),
-                            ),
-                            then: throw_(newClass(InvalidIterableKeyType::class, variable('key'), variable('context')->access('path')))->asStatement(),
-                        ),
-                        ...$subMapper->buildMappingNodes(
+                    body: if_(
+                        condition: $this->type->keyType()->compiledAccept(variable('key'))->wrap(),
+                        then: $subMapper->buildMappingNodes(
                             value: variable('value'),
                             context: variable('context')->callMethod('sub', [
                                 call('strval', [variable('key')]),
                             ]),
                             target: variable('result')->key(variable('key')),
                         ),
-                    ],
+                        else: [
+                            if_(
+                                condition: logicalAnd(
+                                    negate(call('is_string', [variable('key')])),
+                                    negate(call('is_int', [variable('key')])),
+                                ),
+                                then: throw_(newClass(InvalidIterableKeyType::class, variable('key'), variable('context')->access('path')))->asStatement(),
+                            ),
+                            new AddMessageNode(
+                                variable('context')->callMethod('sub', [call('strval', [variable('key')])]),
+                                newClass(
+                                    BasicErrorMessage::class,
+                                    value('Key {key} does not match type {expected_type}.'),
+                                    value('invalid_array_key'),
+                                    array_([
+                                        'key' => dumpValue(variable('key')),
+                                        'expected_type' => value('`' . $this->type->keyType()->toString() . '`'),
+                                    ]),
+                                ),
+                                $this->type->toString(),
+                                dumpValue(variable('value')),
+                            ),
+                        ],
+                    ),
                 ),
 
                 // Checking if errors occurred

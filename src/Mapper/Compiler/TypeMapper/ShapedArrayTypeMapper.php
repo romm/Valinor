@@ -14,6 +14,8 @@ use CuyZ\Valinor\Mapper\Tree\Exception\CannotMapToPermissiveType;
 use CuyZ\Valinor\Mapper\Tree\Exception\MissingNodeValue;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceMustBeIterable;
 use CuyZ\Valinor\Mapper\Tree\Exception\UnexpectedKeyInSource;
+use CuyZ\Valinor\Mapper\Tree\Message\BasicErrorMessage;
+use CuyZ\Valinor\Type\Types\ArrayKeyType;
 use CuyZ\Valinor\Type\Types\MixedType;
 use CuyZ\Valinor\Type\Types\ShapedArrayType;
 use CuyZ\Valinor\Type\Types\UndefinedObjectType;
@@ -21,7 +23,7 @@ use CuyZ\Valinor\Type\VacantType;
 
 use function array_flip;
 use function array_keys;
-use function CuyZ\Valinor\Compiler\{call, dumpValue, forEach_, if_, negate, newClass, param, return_, this, throw_, value, variable, when};
+use function CuyZ\Valinor\Compiler\{array_, call, dumpValue, forEach_, if_, negate, newClass, param, return_, this, throw_, value, variable, when};
 
 /** @internal */
 final class ShapedArrayTypeMapper implements TypeMapper
@@ -255,6 +257,8 @@ final class ShapedArrayTypeMapper implements TypeMapper
                         $valueMapper = $typeMapperFactory->for($unsealedType->subType());
                         $class = $valueMapper->manipulateMapperClass($class, $typeMapperFactory);
 
+                        $keyType = $unsealedType->keyType();
+
                         yield variable('remaining')->assign(
                             call('array_diff_key', [
                                 variable('source'),
@@ -262,18 +266,46 @@ final class ShapedArrayTypeMapper implements TypeMapper
                             ]),
                         )->asStatement();
 
-                        yield forEach_(
-                            variable('remaining'),
-                            'remainingKey',
-                            'remainingValue',
-                            $valueMapper->buildMappingNodes(
-                                variable('remainingValue'),
-                                variable('context')->callMethod('sub', [
-                                    call('strval', [variable('remainingKey')]),
-                                ]),
-                                variable('result')->key(variable('remainingKey')),
-                            ),
+                        $valueMappingNodes = $valueMapper->buildMappingNodes(
+                            variable('remainingValue'),
+                            variable('context')->callMethod('sub', [
+                                call('strval', [variable('remainingKey')]),
+                            ]),
+                            variable('result')->key(variable('remainingKey')),
                         );
+
+                        if ($keyType !== ArrayKeyType::default()) {
+                            yield forEach_(
+                                variable('remaining'),
+                                'remainingKey',
+                                'remainingValue',
+                                if_(
+                                    condition: negate($keyType->compiledAccept(variable('remainingKey'))->wrap()),
+                                    then: new AddMessageNode(
+                                        variable('context')->callMethod('sub', [call('strval', [variable('remainingKey')])]),
+                                        newClass(
+                                            BasicErrorMessage::class,
+                                            value('Key {key} does not match type {expected_type}.'),
+                                            value('invalid_array_key'),
+                                            array_([
+                                                'key' => dumpValue(variable('remainingKey')),
+                                                'expected_type' => value('`' . $keyType->toString() . '`'),
+                                            ]),
+                                        ),
+                                        $unsealedType->toString(),
+                                        dumpValue(variable('remainingValue')),
+                                    ),
+                                    else: $valueMappingNodes,
+                                ),
+                            );
+                        } else {
+                            yield forEach_(
+                                variable('remaining'),
+                                'remainingKey',
+                                'remainingValue',
+                                $valueMappingNodes,
+                            );
+                        }
                     }
                 } elseif (! $this->settings->allowSuperfluousKeys) {
                     // Sealed array: detect extra keys

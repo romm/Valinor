@@ -47,18 +47,18 @@ final class ListNodeBuilder implements NodeBuilder
         $errors = [];
 
         foreach ($value as $key => $val) {
-            if (! is_string($key) && ! is_int($key)) {
-                throw new InvalidIterableKeyType($key, $shell->path);
-            }
-
             if ($shell->allowNonSequentialList || $key === $expected) {
                 $child = $shell->child((string)$expected, $subType);
 
                 $childNode = $children[$expected] = $child->withValue($val)->build();
             } else {
+                if (! is_string($key) && ! is_int($key)) {
+                    throw new InvalidIterableKeyType($key, $shell->path);
+                }
+
                 $child = $shell->child((string)$key, $subType);
 
-                $childNode = $children[$key] = $child->error(new InvalidListKey($key, $expected));
+                $childNode = $child->error(new InvalidListKey($key, $expected));
             }
 
             if (! $childNode->isValid()) {

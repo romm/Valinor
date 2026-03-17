@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
+use CuyZ\Valinor\Compiler\Native\PostIncrementNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
@@ -13,10 +14,11 @@ use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Tree\Exception\InvalidIterableKeyType;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceIsEmptyList;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceMustBeIterable;
+use CuyZ\Valinor\Mapper\Tree\Message\BasicErrorMessage;
 use CuyZ\Valinor\Type\Types\ListType;
 use CuyZ\Valinor\Type\Types\NonEmptyListType;
 
-use function CuyZ\Valinor\Compiler\{call, dumpValue, forEach_, if_, logicalAnd, negate, newClass, param, return_, this, throw_, value, variable, when};
+use function CuyZ\Valinor\Compiler\{array_, call, dumpValue, forEach_, if_, logicalAnd, negate, newClass, param, postIncrement, return_, this, throw_, value, variable, when};
 
 /** @internal */
 final class ListTypeMapper implements TypeMapper
@@ -64,11 +66,12 @@ final class ListTypeMapper implements TypeMapper
             body: [
                 // Handling null values
                 // ====================
-                //
-                // The behaviour depends on the `allowUndefinedValues` setting.
                 when(
                     condition: $this->settings->allowUndefinedValues,
 
+                    // When `allowUndefinedValues` is on
+                    // =================================
+                    //
                     // if ($source === null) {
                     //     $source = [];
                     // }
@@ -77,6 +80,9 @@ final class ListTypeMapper implements TypeMapper
                         then: variable('source')->assign(value([]))->asStatement(),
                     ),
 
+                    // When `allowUndefinedValues` is off
+                    // ==================================
+                    //
                     // if ($source === null) {
                     //     $context->addMessage('source must be iterable');
                     // }
@@ -128,35 +134,91 @@ final class ListTypeMapper implements TypeMapper
                 // $result = [];
                 variable('result')->assign(value([]))->asStatement(),
 
+                // Initializing expected key counter
+                // =================================
+                //
+                // $expectedKey = 0;
+                when(
+                    condition: ! $this->settings->allowNonSequentialList,
+                    then: variable('expectedKey')->assign(value(0))->asStatement(),
+                ),
+
                 // Looping over the source
                 // =======================
                 //
                 // foreach ($source as $key => $value) {
-                //     if (! is_string($key) && ! is_int($key)) {
-                //         throw new InvalidIterableKeyType($key, $context->path());
-                //     }
-                //
-                //     $result[$key] = $this->mapSubType($value, $context->sub($key));
+                //     …
                 // }
                 forEach_(
                     value: variable('source'),
                     key: 'key',
                     item: 'value',
                     body: [
-                        if_(
-                            condition: logicalAnd(
-                                negate(call('is_string', [variable('key')])),
-                                negate(call('is_int', [variable('key')])),
+                        when(
+                            condition: $this->settings->allowNonSequentialList,
+
+                            // When `allowNonSequentialList` is on
+                            // ===================================
+                            //
+                            // $result[$expectedKey] = $this->mapSubType($value, $context->sub($expectedKey));
+                            then: $subMapper->buildMappingNodes(
+                                value: variable('value'),
+                                context: variable('context')->callMethod('sub', [variable('expectedKey')]),
+                                target: variable('result')->key(variable('expectedKey')),
                             ),
-                            then: throw_(newClass(InvalidIterableKeyType::class, variable('key'), variable('context')->access('path')))->asStatement(),
+
+                            // When `allowNonSequentialList` is off
+                            // ====================================
+                            //
+                            // if ($key === $expectedKey) {
+                            //     $result[$expectedKey] = $this->mapSubType($value, $context->sub($expectedKey));
+                            // } else {
+                            //     if (! is_string($key) && ! is_int($key)) {
+                            //         throw new InvalidIterableKeyType($key, $context->path());
+                            //     }
+                            //
+                            //     $context->sub($key)->addMessage('invalid list key');
+                            // }
+                            else: [
+                                if_(
+                                    condition: variable('key')->equals(variable('expectedKey')),
+                                    then: $subMapper->buildMappingNodes(
+                                        value: variable('value'),
+                                        context: variable('context')->callMethod('sub', [variable('expectedKey')]),
+                                        target: variable('result')->key(variable('expectedKey')),
+                                    ),
+                                    else: [
+                                        if_(
+                                            condition: logicalAnd(
+                                                negate(call('is_string', [variable('key')])),
+                                                negate(call('is_int', [variable('key')])),
+                                            ),
+                                            then: throw_(newClass(InvalidIterableKeyType::class, variable('key'), variable('context')->access('path')))->asStatement(),
+                                        ),
+                                        new AddMessageNode(
+                                            variable('context')->callMethod('sub', [call('strval', [variable('key')])]),
+                                            newClass(
+                                                BasicErrorMessage::class,
+                                                value('Invalid sequential key {key}, expected {expected}.'),
+                                                value('invalid_list_key'),
+                                                array_([
+                                                    'key' => dumpValue(variable('key')),
+                                                    'expected' => call('strval', [variable('expectedKey')]),
+                                                ]),
+                                            ),
+                                            $this->type->subType()->toString(),
+                                            dumpValue(variable('value')),
+                                        ),
+                                    ]
+                                ),
+                            ]
                         ),
-                        ...$subMapper->buildMappingNodes(
-                            value: variable('value'),
-                            context: variable('context')->callMethod('sub', [
-                                call('strval', [variable('key')]),
-                            ]),
-                            target: variable('result')->key(variable('key')),
-                        ),
+
+                        // Incrementing expected key counter
+                        // =================================
+                        //
+                        // $expectedKey++;
+                        postIncrement(variable('expectedKey'))->asStatement(),
                     ],
                 ),
 
