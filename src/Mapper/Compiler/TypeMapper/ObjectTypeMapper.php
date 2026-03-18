@@ -84,24 +84,9 @@ final class ObjectTypeMapper implements TypeMapper
             );
         }
 
-        // Apply key converters when source is an array
-        if ($typeMapperFactory->hasKeyConverters()) {
-            $nodes = [...$nodes, ...KeyConverterNodes::build($typeMapperFactory, wrapInArrayCheck: true)];
-        }
-
         $hasMultipleBuilders = count($this->builders) > 1;
 
         foreach ($this->builders as $builder) {
-            // Register callbacks for factory-created FunctionObjectBuilders
-            // (e.g. DateTime/DateTimeZone). Settings-based constructors use
-            // direct index access and don't need callback registration.
-            if ($builder instanceof FunctionObjectBuilder && $builder->constructorIndex() === null) {
-                $typeMapperFactory->registerCallback(
-                    $builder->callbackKey(),
-                    $builder->callback(),
-                );
-            }
-
             $arguments = $builder->describeArguments();
             $argCount = count($arguments);
 
@@ -167,7 +152,7 @@ final class ObjectTypeMapper implements TypeMapper
         } else {
             // Build shaped array mapper for multi-arg validation
             $shapedArrayType = $arguments->toShapedArray();
-            $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, $typeMapperFactory->settings(), applyKeyConverters: false);
+            $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, $typeMapperFactory->settings());
             $class = $shapedMapper->manipulateMapperClass($class, $typeMapperFactory);
         }
 
@@ -388,7 +373,7 @@ final class ObjectTypeMapper implements TypeMapper
     ): void {
         // Multi-argument case: delegate to ShapedArrayTypeMapper
         $shapedArrayType = $arguments->toShapedArray();
-        $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, $typeMapperFactory->settings(), applyKeyConverters: false);
+        $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, $typeMapperFactory->settings());
         $class = $shapedMapper->manipulateMapperClass($class, $typeMapperFactory);
 
         $nodes = [...$nodes, ...$shapedMapper->buildMappingNodes(variable('source'), variable('context'), variable('values'))];
@@ -455,7 +440,7 @@ final class ObjectTypeMapper implements TypeMapper
                 $argument->attributes(),
             ),
         ]);
-        $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, $typeMapperFactory->settings(), applyKeyConverters: false);
+        $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, $typeMapperFactory->settings());
 
         // Flat mapper for direct source mapping
         $flatMapper = $typeMapperFactory->for($flattenedType);

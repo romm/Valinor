@@ -33,7 +33,6 @@ final class ShapedArrayTypeMapper implements TypeMapper
     public function __construct(
         private ShapedArrayType $type,
         private Settings $settings,
-        private bool $applyKeyConverters = true,
     ) {}
 
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
@@ -115,13 +114,6 @@ final class ShapedArrayTypeMapper implements TypeMapper
                 then: variable('source')->assign(
                     call('iterator_to_array', [variable('source')]),
                 )->asStatement(),
-            ),
-
-            // Applying key converters
-            // =======================
-            when(
-                condition: $this->applyKeyConverters && $typeMapperFactory->hasKeyConverters(),
-                then: KeyConverterNodes::build($typeMapperFactory),
             ),
 
             // Initializing the result
@@ -372,12 +364,6 @@ final class ShapedArrayTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        $hashInput = $this->type->toString();
-
-        if (! $this->applyKeyConverters) {
-            $hashInput .= '|no_kc';
-        }
-
-        return self::buildMethodName('map_shaped_array', $this->type->toString(), $hashInput);
+        return self::buildMethodName('map_shaped_array', $this->type->toString());
     }
 }

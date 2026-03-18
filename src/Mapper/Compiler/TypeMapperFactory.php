@@ -10,6 +10,7 @@ use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ArrayTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ConverterTypeMapperWrapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\InterfacePassthroughTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\InterfaceTypeMapper;
+use CuyZ\Valinor\Mapper\Compiler\TypeMapper\KeyConverterTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ListTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\MixedTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\NullTypeMapper;
@@ -47,9 +48,6 @@ use RuntimeException;
 
 final class TypeMapperFactory
 {
-    /** @var array<string, mixed> */
-    private array $constructorCallbacks = [];
-
     public function __construct(
         private ClassDefinitionRepository $classDefinitionRepository,
         private ObjectBuilderFactory $objectBuilderFactory,
@@ -59,17 +57,6 @@ final class TypeMapperFactory
         private KeyConverterHandler $keyConverterHandler,
         private Settings $settings,
     ) {}
-
-    public function registerCallback(string $key, mixed $callback): void
-    {
-        $this->constructorCallbacks[$key] = $callback;
-    }
-
-    /** @return array<string, mixed> */
-    public function constructorCallbacks(): array
-    {
-        return $this->constructorCallbacks;
-    }
 
     public function dumpType(Type $type): string
     {
@@ -86,17 +73,6 @@ final class TypeMapperFactory
         return $this->settings;
     }
 
-    public function hasKeyConverters(): bool
-    {
-        return $this->keyConverterHandler->hasKeyConverters();
-    }
-
-    /** @return list<int> */
-    public function keyConverterIndices(): array
-    {
-        return $this->keyConverterHandler->keyConverterIndices();
-    }
-
     /**
      * Create a TypeMapper for the given type, optionally wrapping with converters.
      */
@@ -107,6 +83,7 @@ final class TypeMapperFactory
         }
 
         $typeMapper = $this->resolveTypeMapper($type);
+        $baseMapper = $typeMapper;
 
         // Wrap with converter logic if converters are registered and applicable
         if ($applyConverters) {
@@ -128,6 +105,15 @@ final class TypeMapperFactory
                     $typeMapper = new ConverterTypeMapperWrapper($type, $typeMapper, $classAttrConverters);
                 }
             }
+        }
+
+        // Wrap with key converter logic
+        if ($this->keyConverterHandler->hasKeyConverters() && ($baseMapper instanceof ObjectTypeMapper || $baseMapper instanceof ShapedArrayTypeMapper)) {
+            $typeMapper = new KeyConverterTypeMapper(
+                $type,
+                $typeMapper,
+                $this->keyConverterHandler->keyConverterIndices(),
+            );
         }
 
         return $typeMapper;
