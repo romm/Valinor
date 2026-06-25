@@ -8,7 +8,6 @@ use CuyZ\Valinor\Definition\ClassDefinition;
 use CuyZ\Valinor\Definition\FunctionObject;
 use CuyZ\Valinor\Definition\FunctionsContainer;
 use CuyZ\Valinor\Mapper\Object\Arguments;
-use CuyZ\Valinor\Mapper\Object\ArgumentsValues;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotInferFinalClass;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotResolveObjectType;
 use CuyZ\Valinor\Mapper\Tree\Exception\InterfaceHasBothConstructorAndInfer;
@@ -21,6 +20,7 @@ use CuyZ\Valinor\Utility\Polyfill;
 use Throwable;
 
 use function assert;
+use function count;
 
 /** @internal */
 final class InterfaceNodeBuilder implements NodeBuilder
@@ -39,9 +39,8 @@ final class InterfaceNodeBuilder implements NodeBuilder
         $function = $this->interfaceInferringContainer->inferFunctionFor($shell->type->className());
 
         $arguments = Arguments::fromParameters($function->parameters);
-        $argumentsValues = ArgumentsValues::forInterface($shell, $arguments);
 
-        $valuesNode = $argumentsValues->shell->build();
+        $valuesNode = $this->valuesNode($shell, $arguments);
 
         if (! $valuesNode->isValid()) {
             $messages = $valuesNode->messages();
@@ -54,7 +53,8 @@ final class InterfaceNodeBuilder implements NodeBuilder
         }
 
         try {
-            $values = $argumentsValues->transform($valuesNode->value());
+            /** @var array<string, mixed> */
+            $values = $valuesNode->value();
 
             $classType = $this->interfaceInferringContainer->inferClassFor($shell->type->className(), $values);
         } catch (ObjectImplementationCallbackError $exception) {
@@ -102,5 +102,22 @@ final class InterfaceNodeBuilder implements NodeBuilder
         }
 
         return false;
+    }
+
+    private function valuesNode(Shell $shell, Arguments $arguments): Node
+    {
+        $shell = $shell
+            ->allowSuperfluousKeys()
+            ->withType($arguments->toShapedArray());
+
+        if (count($arguments) === 0) {
+            return $shell->withValue([])->build();
+        }
+
+        if ($shell->allowUndefinedValues && $shell->value() === null) {
+            $shell = $shell->withValue([]);
+        }
+
+        return $shell->wrapSingleValueIfNeeded()->build();
     }
 }

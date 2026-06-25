@@ -54,6 +54,7 @@ final class Shell
         private array $pathMap = [],
         /** @var array<string, null> */
         private array $childrenWithScalarValueCasting = [],
+        public bool $wrapSingleValueIfNeeded = false,
     ) {}
 
     public function build(): Node
@@ -87,6 +88,7 @@ final class Shell
         $self->attributes = Attributes::empty();
         $self->childrenCount = 0;
         $self->nameMap = [];
+        $self->wrapSingleValueIfNeeded = false;
 
         if (array_key_exists($name, $this->childrenWithScalarValueCasting)) {
             $self->allowScalarValueCasting = true;
@@ -205,6 +207,15 @@ final class Shell
         // @infection-ignore-all / We don't want to test the clone behavior
         $self = clone $this;
         $self->childrenWithScalarValueCasting = array_fill_keys($childrenWithScalarValueCasting, null);
+
+        return $self;
+    }
+
+    public function wrapSingleValueIfNeeded(): self
+    {
+        // @infection-ignore-all / We don't want to test the clone behavior
+        $self = clone $this;
+        $self->wrapSingleValueIfNeeded = true;
 
         return $self;
     }
