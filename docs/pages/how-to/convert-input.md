@@ -235,6 +235,76 @@ one transforms the result of the previous one, in registration order:
     ]);
 ```
 
+### Mapping a single property from a specific key
+
+When only one property needs to come from a different key, the `#[MapFromKey]`
+attribute can be placed directly on that property, or on a constructor/method
+argument, instead of registering a global key converter:
+
+```php
+final readonly class Person
+{
+    public function __construct(
+        public string $name,
+        #[\CuyZ\Valinor\Mapper\Configurator\MapFromKey('zipCode')]
+        public string $postalCode,
+    ) {}
+}
+
+(new \CuyZ\Valinor\MapperBuilder())
+    ->mapper()
+    ->map(Person::class, [
+        'name' => 'John Doe',
+        'zipCode' => '75001',
+    ]);
+```
+
+The given key is used as-is: it is **not** affected by the key converters
+registered with `registerKeyConverter()`, and the property name is no longer
+accepted: the source is read only from the given key.
+
+!!! note
+
+    Two properties cannot be mapped from the same source key; doing so is a
+    configuration error and throws an exception during mapping.
+
+### Custom key mapping attributes
+
+`#[MapFromKey]` is built on a lightweight attribute protocol: any attribute
+class that declares a `mapKey(string $key): string` method and carries the
+`#[AsConverter]` attribute can remap the key of the element it is placed on.
+The method receives the property name and returns the source key to read from.
+
+This is handy to factor out a recurring transformation, such as a prefix shared
+by several properties:
+
+```php
+#[\Attribute(\Attribute::TARGET_PROPERTY | \Attribute::TARGET_PARAMETER)]
+#[\CuyZ\Valinor\Mapper\AsConverter]
+final class MapWithPrefix
+{
+    public function __construct(private string $prefix) {}
+
+    public function mapKey(string $key): string
+    {
+        return $this->prefix . $key;
+    }
+}
+
+final readonly class Configuration
+{
+    public function __construct(
+        #[MapWithPrefix('app_')] // reads from `app_host`
+        public string $host,
+        #[MapWithPrefix('app_')] // reads from `app_port`
+        public int $port,
+    ) {}
+}
+```
+
+Like global key converters, several `mapKey` attributes on the same property are
+applied as a pipeline, in declaration order.
+
 ## Converters error handling
 
 When a value converter or a key converter throws an exception, the mapper will
