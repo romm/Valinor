@@ -21,8 +21,6 @@ use CuyZ\Valinor\Type\Types\ShapedArrayType;
 use CuyZ\Valinor\Type\Types\UnionType;
 use CuyZ\Valinor\Utility\TypeHelper;
 
-use Throwable;
-
 use function array_map;
 use function count;
 use function CuyZ\Valinor\Compiler\{array_, dumpValue, if_, negate, newClass, param, return_, this, value, variable};
@@ -168,7 +166,6 @@ final class UnionTypeMapper implements TypeMapper
                 $category = $this->typeCategory($subType);
                 $errorPriority = TypeHelper::typePriority($subType);
                 $scalarPriority = ($subType instanceof ScalarType) ? TypeHelper::scalarTypePriority($subType) : 0;
-                $children = $this->childrenCount($subType, $typeMapperFactory);
 
                 // Create isolated context
                 $nodes[] = variable($subCtxVar)->assign(
@@ -195,7 +192,10 @@ final class UnionTypeMapper implements TypeMapper
                         'category' => value($category),
                         'errorPriority' => value($errorPriority),
                         'scalarPriority' => value($scalarPriority),
-                        'children' => value($children),
+                        // The children are counted while mapping, so that only
+                        // the ones actually found in the source are taken into
+                        // account, the same way the runtime mapper does.
+                        'children' => variable($subCtxVar)->callMethod('childrenCount'),
                     ]),
                 )->asStatement();
                 $candidateIdx++;
@@ -256,26 +256,6 @@ final class UnionTypeMapper implements TypeMapper
         }
 
         return 'other';
-    }
-
-    private function childrenCount(Type $type, TypeMapperFactory $typeMapperFactory): int
-    {
-        if ($type instanceof ShapedArrayType) {
-            return count($type->elements);
-        }
-
-        if ($type instanceof ClassType) {
-            try {
-                $mapper = $typeMapperFactory->for($type);
-                if ($mapper instanceof ObjectTypeMapper) {
-                    return $mapper->argumentCount();
-                }
-            } catch (Throwable) {
-                // Ignore errors
-            }
-        }
-
-        return 0;
     }
 
     /**

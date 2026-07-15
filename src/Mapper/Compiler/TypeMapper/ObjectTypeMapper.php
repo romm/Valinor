@@ -205,7 +205,10 @@ final class ObjectTypeMapper implements TypeMapper
                 ...$shapedMapper->buildMappingNodes(variable('source'), variable('isolatedCtx'), variable('values')),
                 if_(
                     condition: negate(variable('isolatedCtx')->callMethod('containsErrors')),
-                    then: $buildNodes,
+                    then: [
+                        variable('context')->callMethod('inheritChildrenCountFrom', [variable('isolatedCtx')])->asStatement(),
+                        ...$buildNodes,
+                    ],
                 ),
             ];
 
@@ -231,6 +234,7 @@ final class ObjectTypeMapper implements TypeMapper
             $nodes[] = if_(
                 condition: negate(variable('isolatedCtx')->callMethod('containsErrors')),
                 then: [
+                    variable('context')->callMethod('inheritChildrenCountFrom', [variable('isolatedCtx')])->asStatement(),
                     variable('values')->assign(
                         array_([
                             $argName => variable('mappedValue'),
@@ -247,7 +251,10 @@ final class ObjectTypeMapper implements TypeMapper
             $nodes = [...$nodes, ...$shapedMapper->buildMappingNodes(variable('source'), variable('isolatedCtx'), variable('values'))];
             $nodes[] = if_(
                 condition: negate(variable('isolatedCtx')->callMethod('containsErrors')),
-                then: $buildNodes,
+                then: [
+                    variable('context')->callMethod('inheritChildrenCountFrom', [variable('isolatedCtx')])->asStatement(),
+                    ...$buildNodes,
+                ],
             );
         }
 

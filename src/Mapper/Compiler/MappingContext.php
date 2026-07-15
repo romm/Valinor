@@ -21,6 +21,18 @@ final class MappingContext
     /** @var array<string, string> */
     private array $nameMap = [];
 
+    /**
+     * Number of children that were mapped in this context, used to rank union
+     * candidates: the more children a struct has, the more specific it is.
+     *
+     * This cannot be deduced from the calls to `sub()`, because the sub-context
+     * is only built by the compiled code when it actually has a message to
+     * report, whereas a child that is mapped without error must be counted too.
+     *
+     * @var non-negative-int
+     */
+    private int $childrenCount = 0;
+
     public function __construct(
         public readonly string $name = '',
         public readonly string $path = '*root*',
@@ -34,6 +46,29 @@ final class MappingContext
         $ctx = new self($originalName, $this->path === '*root*' ? $originalName : "$this->path.$originalName", $this->messages);
         $ctx->allowedSuperfluousKeys = $this->allowedSuperfluousKeys;
         return $ctx;
+    }
+
+    public function countChild(): void
+    {
+        $this->childrenCount++;
+    }
+
+    /**
+     * @return non-negative-int
+     */
+    public function childrenCount(): int
+    {
+        return $this->childrenCount;
+    }
+
+    /**
+     * When an object is built out of several possible builders, each one is
+     * tried in an isolated context. The children of the builder that succeeded
+     * are the ones of the object itself.
+     */
+    public function inheritChildrenCountFrom(self $other): void
+    {
+        $this->childrenCount = $other->childrenCount;
     }
 
     /**

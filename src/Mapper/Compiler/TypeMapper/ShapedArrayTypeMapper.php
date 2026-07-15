@@ -143,42 +143,49 @@ final class ShapedArrayTypeMapper implements TypeMapper
                         // Key exists in source: map the value through the sub-mapper.
                         //
                         // if (array_key_exists('some_key', $source)) {
+                        //     $context->countChild();
                         //     $result['some_key'] = $this->mapSubType($source['some_key'], $context->sub('some_key'));
                         // }
-                        then: $subMapper->buildMappingNodes(
-                            variable('source')->key(value($key)),
-                            variable('context')->callMethod('sub', [value((string)$key)]),
-                            variable('result')->key(value($key)),
-                        ),
+                        then: [
+                            variable('context')->callMethod('countChild')->asStatement(),
+                            ...$subMapper->buildMappingNodes(
+                                variable('source')->key(value($key)),
+                                variable('context')->callMethod('sub', [value((string)$key)]),
+                                variable('result')->key(value($key)),
+                            ),
+                        ],
 
                         // If the key does not exist in source *and* the element is not optional.
                         else: when(
                             ! $element->isOptional(),
-                            then: when(
-                                condition: $this->settings->allowUndefinedValues,
+                            then: [
+                                variable('context')->callMethod('countChild')->asStatement(),
+                                when(
+                                    condition: $this->settings->allowUndefinedValues,
 
-                                // `allowUndefinedValues` is on: pass null so the sub-mapper can cast/coerce it
-                                //
-                                // $result['some_key'] = $this->mapSubType(null, $context->sub('some_key'));
-                                then: $subMapper->buildMappingNodes(
-                                    value(null),
-                                    variable('context')->callMethod('sub', [value((string)$key)]),
-                                    variable('result')->key(value($key)),
-                                ),
+                                    // `allowUndefinedValues` is on: pass null so the sub-mapper can cast/coerce it
+                                    //
+                                    // $result['some_key'] = $this->mapSubType(null, $context->sub('some_key'));
+                                    then: $subMapper->buildMappingNodes(
+                                        value(null),
+                                        variable('context')->callMethod('sub', [value((string)$key)]),
+                                        variable('result')->key(value($key)),
+                                    ),
 
-                                // `allowUndefinedValues` is off: the element is required but absent: report a
-                                // missing-value error.
-                                //
-                                // $context->sub('some_key')->addMessage('missing value');
-                                else: new AddMessageNode(
-                                    variable('context')->callMethod('sub', [value((string)$key)]),
-                                    MissingNodeValue::from($element->type()),
-                                    $element->type()->toString(),
-                                    value('*missing*'),
-                                    $typeMapperFactory->dumpType($element->type()),
+                                    // `allowUndefinedValues` is off: the element is required but absent: report a
+                                    // missing-value error.
+                                    //
+                                    // $context->sub('some_key')->addMessage('missing value');
+                                    else: new AddMessageNode(
+                                        variable('context')->callMethod('sub', [value((string)$key)]),
+                                        MissingNodeValue::from($element->type()),
+                                        $element->type()->toString(),
+                                        value('*missing*'),
+                                        $typeMapperFactory->dumpType($element->type()),
+                                    ),
                                 ),
-                            )
-                        )
+                            ],
+                        ),
                     );
                 }
             })(),

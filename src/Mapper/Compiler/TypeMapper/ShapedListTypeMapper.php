@@ -142,42 +142,49 @@ final class ShapedListTypeMapper implements TypeMapper
                         // Key exists in source: map the value through the sub-mapper.
                         //
                         // if (array_key_exists(0, $source)) {
+                        //     $context->countChild();
                         //     $result[0] = $this->mapSubType($source[0], $context->sub('0'));
                         // }
-                        then: $subMapper->buildMappingNodes(
-                            variable('source')->key(value($key)),
-                            variable('context')->callMethod('sub', [value((string)$key)]),
-                            variable('result')->key(value($key)),
-                        ),
+                        then: [
+                            variable('context')->callMethod('countChild')->asStatement(),
+                            ...$subMapper->buildMappingNodes(
+                                variable('source')->key(value($key)),
+                                variable('context')->callMethod('sub', [value((string)$key)]),
+                                variable('result')->key(value($key)),
+                            ),
+                        ],
 
                         // If the key does not exist in source *and* the element is not optional.
                         else: when(
                             ! $element->isOptional(),
-                            then: when(
-                                condition: $this->settings->allowUndefinedValues,
+                            then: [
+                                variable('context')->callMethod('countChild')->asStatement(),
+                                when(
+                                    condition: $this->settings->allowUndefinedValues,
 
-                                // `allowUndefinedValues` is on: pass null so the sub-mapper can cast/coerce it
-                                //
-                                // $result[0] = $this->mapSubType(null, $context->sub('0'));
-                                then: $subMapper->buildMappingNodes(
-                                    value(null),
-                                    variable('context')->callMethod('sub', [value((string)$key)]),
-                                    variable('result')->key(value($key)),
-                                ),
+                                    // `allowUndefinedValues` is on: pass null so the sub-mapper can cast/coerce it
+                                    //
+                                    // $result[0] = $this->mapSubType(null, $context->sub('0'));
+                                    then: $subMapper->buildMappingNodes(
+                                        value(null),
+                                        variable('context')->callMethod('sub', [value((string)$key)]),
+                                        variable('result')->key(value($key)),
+                                    ),
 
-                                // `allowUndefinedValues` is off: the element is required but absent: report a
-                                // missing-value error.
-                                //
-                                // $context->sub('0')->addMessage('missing value');
-                                else: new AddMessageNode(
-                                    variable('context')->callMethod('sub', [value((string)$key)]),
-                                    MissingNodeValue::from($element->type()),
-                                    $element->type()->toString(),
-                                    value('*missing*'),
-                                    $typeMapperFactory->dumpType($element->type()),
+                                    // `allowUndefinedValues` is off: the element is required but absent: report a
+                                    // missing-value error.
+                                    //
+                                    // $context->sub('0')->addMessage('missing value');
+                                    else: new AddMessageNode(
+                                        variable('context')->callMethod('sub', [value((string)$key)]),
+                                        MissingNodeValue::from($element->type()),
+                                        $element->type()->toString(),
+                                        value('*missing*'),
+                                        $typeMapperFactory->dumpType($element->type()),
+                                    ),
                                 ),
-                            )
-                        )
+                            ],
+                        ),
                     );
                 }
             })(),
@@ -241,7 +248,12 @@ final class ShapedListTypeMapper implements TypeMapper
                     // $expectedKey = 2;
                     yield variable('expectedKey')->assign(value(count($this->type->elements)))->asStatement();
 
+                    // Every remaining value is a child of the list, whether it
+                    // keeps the sequence or not.
+                    //
                     // foreach ($remaining as $remainingKey => $remainingValue) {
+                    //     $context->countChild();
+                    //
                     //     if (! is_int($remainingKey) || $remainingKey !== $expectedKey) {
                     //         $context->sub('5')->addMessage('unexpected key');
                     //     } else {
@@ -253,27 +265,30 @@ final class ShapedListTypeMapper implements TypeMapper
                         variable('remaining'),
                         'remainingKey',
                         'remainingValue',
-                        if_(
-                            condition: logicalOr(
-                                negate(call('is_int', [variable('remainingKey')])),
-                                variable('remainingKey')->different(variable('expectedKey')),
-                            ),
-                            then: new AddMessageNode(
-                                variable('context')->callMethod('sub', [call('strval', [variable('remainingKey')])]),
-                                new UnexpectedKeyInSource(),
-                                $this->type->toString(),
-                                dumpValue(variable('remainingValue')),
-                                $dumpedType,
-                            ),
-                            else: [
-                                postIncrement(variable('expectedKey'))->asStatement(),
-                                ...$valueMapper->buildMappingNodes(
-                                    variable('remainingValue'),
-                                    variable('context')->callMethod('sub', [call('strval', [variable('remainingKey')])]),
-                                    variable('result')->key(variable('remainingKey')),
+                        [
+                            variable('context')->callMethod('countChild')->asStatement(),
+                            if_(
+                                condition: logicalOr(
+                                    negate(call('is_int', [variable('remainingKey')])),
+                                    variable('remainingKey')->different(variable('expectedKey')),
                                 ),
-                            ],
-                        ),
+                                then: new AddMessageNode(
+                                    variable('context')->callMethod('sub', [call('strval', [variable('remainingKey')])]),
+                                    new UnexpectedKeyInSource(),
+                                    $this->type->toString(),
+                                    dumpValue(variable('remainingValue')),
+                                    $dumpedType,
+                                ),
+                                else: [
+                                    postIncrement(variable('expectedKey'))->asStatement(),
+                                    ...$valueMapper->buildMappingNodes(
+                                        variable('remainingValue'),
+                                        variable('context')->callMethod('sub', [call('strval', [variable('remainingKey')])]),
+                                        variable('result')->key(variable('remainingKey')),
+                                    ),
+                                ],
+                            ),
+                        ],
                     );
                 } elseif (! $this->settings->allowSuperfluousKeys) {
                     // Sealed list: any remaining value is unexpected.
