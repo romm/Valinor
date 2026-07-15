@@ -129,23 +129,13 @@ final class ShapedArrayTypeMapper implements TypeMapper
             // mutate `$class` (registering sub-mapper methods).
             ...(function () use ($typeMapperFactory, &$class) {
                 foreach ($this->type->elements as $key => $element) {
-                    $subMapper = $typeMapperFactory->for($element->type());
-
-                    // Wrap with attribute converters if the element has any
-                    $attrConverters = $typeMapperFactory->converterAnalyzer()->attributeConvertersFor($element->attributes(), $element->type());
-
-                    if ($attrConverters !== []) {
-                        $subMapper = new ConverterTypeMapperWrapper($element->type(), $subMapper, $attrConverters);
-                    }
+                    $subMapper = $typeMapperFactory->for($element->type(), attributes: $element->attributes());
 
                     try {
                         $class = $subMapper->manipulateMapperClass($class, $typeMapperFactory);
                     } catch (CannotMapToPermissiveType) {
                         throw new CannotMapToPermissiveType($element->type()->toString(), (string)$key);
                     }
-
-                    $keyStr = (string)$key;
-                    $elementTarget = variable('result')->key(value($key));
 
                     yield if_(
                         condition: call('array_key_exists', [value($key), variable('source')]),
@@ -157,8 +147,8 @@ final class ShapedArrayTypeMapper implements TypeMapper
                         // }
                         then: $subMapper->buildMappingNodes(
                             variable('source')->key(value($key)),
-                            variable('context')->callMethod('sub', [value($keyStr)]),
-                            $elementTarget,
+                            variable('context')->callMethod('sub', [value((string)$key)]),
+                            variable('result')->key(value($key)),
                         ),
 
                         // If the key does not exist in source *and* the element is not optional.
@@ -172,8 +162,8 @@ final class ShapedArrayTypeMapper implements TypeMapper
                                 // $result['some_key'] = $this->mapSubType(null, $context->sub('some_key'));
                                 then: $subMapper->buildMappingNodes(
                                     value(null),
-                                    variable('context')->callMethod('sub', [value($keyStr)]),
-                                    $elementTarget,
+                                    variable('context')->callMethod('sub', [value((string)$key)]),
+                                    variable('result')->key(value($key)),
                                 ),
 
                                 // `allowUndefinedValues` is off: the element is required but absent: report a
@@ -181,7 +171,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
                                 //
                                 // $context->sub('some_key')->addMessage('missing value');
                                 else: new AddMessageNode(
-                                    variable('context')->callMethod('sub', [value($keyStr)]),
+                                    variable('context')->callMethod('sub', [value((string)$key)]),
                                     MissingNodeValue::from($element->type()),
                                     $element->type()->toString(),
                                     value('*missing*'),

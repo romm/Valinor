@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace CuyZ\Valinor\Mapper\Compiler;
 
+use CuyZ\Valinor\Definition\Attributes;
 use CuyZ\Valinor\Definition\Repository\ClassDefinitionRepository;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ArrayTypeMapper;
-use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ConverterTypeMapperWrapper;
+use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ConverterTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\InterfacePassthroughTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\InterfaceTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\KeyConverterTypeMapper;
@@ -63,11 +64,6 @@ final class TypeMapperFactory
         return $this->typeDumper->dump($type);
     }
 
-    public function converterAnalyzer(): ConverterAnalyzer
-    {
-        return $this->converterAnalyzer;
-    }
-
     public function settings(): Settings
     {
         return $this->settings;
@@ -76,7 +72,7 @@ final class TypeMapperFactory
     /**
      * Create a TypeMapper for the given type, optionally wrapping with converters.
      */
-    public function for(Type $type, bool $applyConverters = true): TypeMapper
+    public function for(Type $type, bool $applyConverters = true, ?Attributes $attributes = null): TypeMapper
     {
         if ($type instanceof UnresolvableType) {
             throw new UnresolvableShellType($type);
@@ -85,26 +81,31 @@ final class TypeMapperFactory
         $typeMapper = $this->resolveTypeMapper($type);
         $baseMapper = $typeMapper;
 
-        // Wrap with converter logic if converters are registered and applicable
-        if ($applyConverters) {
-            $matchingConverters = $this->converterAnalyzer->matchingConvertersFor($type);
+        // Collect all converters — order matters: element/argument attrs
+        // (outermost) → global → class-level attrs (innermost).
+        $allConverters = [];
 
-            if ($matchingConverters !== []) {
-                $typeMapper = new ConverterTypeMapperWrapper($type, $typeMapper, $matchingConverters);
-            }
+        // 1. Element/argument attribute converters (checked first)
+        if ($attributes !== null) {
+            $allConverters = $this->converterAnalyzer->attributeConvertersFor($attributes, $type);
         }
 
-        // Wrap with class-level attribute converters for concrete ObjectType
+        // 2. Global converters registered for this type
+        if ($applyConverters) {
+            $allConverters = [...$allConverters, ...$this->converterAnalyzer->matchingConvertersFor($type)];
+        }
+
+        // 3. Class-level attribute converters for concrete ObjectType
         if ($type instanceof ObjectType && ! ($type instanceof InterfaceType)) {
             $class = $this->classDefinitionRepository->for($type);
 
             if (! $class->isAbstract && ! $this->interfaceInferringContainer->has($class->name)) {
-                $classAttrConverters = $this->converterAnalyzer->attributeConvertersFor($class->attributes, $type);
-
-                if ($classAttrConverters !== []) {
-                    $typeMapper = new ConverterTypeMapperWrapper($type, $typeMapper, $classAttrConverters);
-                }
+                $allConverters = [...$allConverters, ...$this->converterAnalyzer->attributeConvertersFor($class->attributes, $type)];
             }
+        }
+
+        if ($allConverters !== []) {
+            $typeMapper = new ConverterTypeMapper($type, $typeMapper, $allConverters);
         }
 
         // Wrap with key converter logic

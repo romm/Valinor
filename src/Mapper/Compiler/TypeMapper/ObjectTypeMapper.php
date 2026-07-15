@@ -443,13 +443,7 @@ final class ObjectTypeMapper implements TypeMapper
         $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, $typeMapperFactory->settings());
 
         // Flat mapper for direct source mapping
-        $flatMapper = $typeMapperFactory->for($flattenedType);
-
-        // Wrap flat mapper with attribute converters from the argument
-        $argAttrConverters = $typeMapperFactory->converterAnalyzer()->attributeConvertersFor($argument->attributes(), $flattenedType);
-        if ($argAttrConverters !== []) {
-            $flatMapper = new ConverterTypeMapperWrapper($flattenedType, $flatMapper, $argAttrConverters);
-        }
+        $flatMapper = $typeMapperFactory->for($flattenedType, attributes: $argument->attributes());
 
         return [
             'shapedMapper' => $shapedMapper,
