@@ -14,7 +14,6 @@ use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Http\HttpRequest;
 use CuyZ\Valinor\Mapper\Object\Exception\CannotFindObjectBuilder;
-use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;
 use CuyZ\Valinor\Mapper\Object\ObjectBuilder;
 use CuyZ\Valinor\Mapper\Tree\Message\Message;
 use CuyZ\Valinor\Mapper\Tree\Message\UserlandError;
@@ -424,7 +423,7 @@ final class ObjectTypeMapper implements TypeMapper
      * Prepares mappers for single-argument builders by computing the flattened type,
      * creating a shaped array mapper, and a flat mapper with attribute converters.
      *
-     * @return array{shapedMapper: ShapedArrayTypeMapper, flatMapper: TypeMapper, flattenedType: Type}
+     * @return array{shapedMapper: TypeMapper, flatMapper: TypeMapper, flattenedType: Type}
      */
     private function prepareSingleArgMappers(
         \CuyZ\Valinor\Mapper\Object\Argument $argument,

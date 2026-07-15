@@ -8,6 +8,7 @@ use CuyZ\Valinor\Compiler\Compiler;
 use CuyZ\Valinor\Compiler\Node;
 
 use function is_array;
+use function trim;
 
 /** @internal */
 final class IfNode extends Node
