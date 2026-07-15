@@ -33,4 +33,16 @@ trait TypeMapperMethodName
 
         return "{$prefix}_{$slug}_" . hash('crc32', $hashInput ?? $typeString);
     }
+
+    /**
+     * The same type can be compiled several times with different settings, for
+     * instance when it is filled with the values of an HTTP request. Each
+     * variant needs its own compiled method, hence its own name.
+     */
+    protected function variantHashInput(string $typeString): ?string
+    {
+        return $this->variant === null
+            ? null
+            : $typeString . '|' . $this->variant;
+    }
 }

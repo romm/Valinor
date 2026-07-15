@@ -12,6 +12,7 @@ use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
+use CuyZ\Valinor\Mapper\Http\HttpRequest;
 use CuyZ\Valinor\Mapper\Object\Exception\CannotFindObjectBuilder;
 use CuyZ\Valinor\Mapper\Object\FunctionObjectBuilder;
 use CuyZ\Valinor\Mapper\Object\ObjectBuilder;
@@ -41,6 +42,7 @@ final class ObjectTypeMapper implements TypeMapper
         /** @var non-empty-list<ObjectBuilder> */
         private array $builders,
         private Settings $settings,
+        private ?string $variant = null,
     ) {}
 
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
@@ -152,7 +154,7 @@ final class ObjectTypeMapper implements TypeMapper
         } else {
             // Build shaped array mapper for multi-arg validation
             $shapedArrayType = $arguments->toShapedArray();
-            $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, $typeMapperFactory->settings());
+            $shapedMapper = $typeMapperFactory->forObjectArguments($shapedArrayType);
             $class = $shapedMapper->manipulateMapperClass($class, $typeMapperFactory);
         }
 
@@ -196,6 +198,10 @@ final class ObjectTypeMapper implements TypeMapper
                     variable('source')->equals(value([])),
                 );
             }
+
+            // The values of an HTTP request are spread over the arguments, so
+            // it always goes through the shaped array, never the flat path.
+            $keyedCondition = variable('source')->instanceOf(HttpRequest::class)->or($keyedCondition->wrap());
 
             // Keyed path with isolation
             $keyedBody = [
@@ -328,6 +334,10 @@ final class ObjectTypeMapper implements TypeMapper
             );
         }
 
+        // The values of an HTTP request are spread over the arguments, so it
+        // always goes through the shaped array, never the flat path.
+        $keyedCondition = variable('source')->instanceOf(HttpRequest::class)->or($keyedCondition->wrap());
+
         // Shaped array path: delegate to ShapedArrayTypeMapper
         $nodes[] = if_(
             condition: $keyedCondition,
@@ -380,7 +390,7 @@ final class ObjectTypeMapper implements TypeMapper
     ): void {
         // Multi-argument case: delegate to ShapedArrayTypeMapper
         $shapedArrayType = $arguments->toShapedArray();
-        $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, $typeMapperFactory->settings());
+        $shapedMapper = $typeMapperFactory->forObjectArguments($shapedArrayType);
         $class = $shapedMapper->manipulateMapperClass($class, $typeMapperFactory);
 
         $nodes = [...$nodes, ...$shapedMapper->buildMappingNodes(variable('source'), variable('context'), variable('values'))];
@@ -447,7 +457,7 @@ final class ObjectTypeMapper implements TypeMapper
                 $argument->attributes(),
             ),
         ]);
-        $shapedMapper = new ShapedArrayTypeMapper($shapedArrayType, $typeMapperFactory->settings());
+        $shapedMapper = $typeMapperFactory->forObjectArguments($shapedArrayType);
 
         // Flat mapper for direct source mapping
         $flatMapper = $typeMapperFactory->for($flattenedType, attributes: $argument->attributes());
@@ -503,6 +513,8 @@ final class ObjectTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        return self::buildMethodName('map_object', $this->class->type->toString());
+        $typeString = $this->class->type->toString();
+
+        return self::buildMethodName('map_object', $typeString, $this->variantHashInput($typeString));
     }
 }

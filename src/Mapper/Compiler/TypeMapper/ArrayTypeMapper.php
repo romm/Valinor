@@ -28,6 +28,7 @@ final class ArrayTypeMapper implements TypeMapper
     public function __construct(
         private ArrayType|NonEmptyArrayType|IterableType $type,
         private Settings $settings,
+        private ?string $variant = null,
     ) {}
 
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
@@ -212,6 +213,6 @@ final class ArrayTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        return self::buildMethodName('map_array', $this->type->toString());
+        return self::buildMethodName('map_array', $this->type->toString(), $this->variantHashInput($this->type->toString()));
     }
 }

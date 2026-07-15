@@ -27,6 +27,7 @@ final class KeyConverterTypeMapper implements TypeMapper
         private TypeMapper $delegate,
         /** @list<int> */
         private array $keyConverterIndices,
+        private ?string $variant = null,
     ) {}
 
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
@@ -241,6 +242,8 @@ final class KeyConverterTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        return self::buildMethodName('key_convert', $this->type->toString());
+        $typeString = $this->type->toString();
+
+        return self::buildMethodName('key_convert', $typeString, $this->variantHashInput($typeString));
     }
 }

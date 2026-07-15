@@ -9,6 +9,7 @@ use CuyZ\Valinor\Definition\Repository\ClassDefinitionRepository;
 use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ArrayTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ConverterTypeMapper;
+use CuyZ\Valinor\Mapper\Compiler\TypeMapper\HttpRequestTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\InterfacePassthroughTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\InterfaceTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\KeyConverterTypeMapper;
@@ -59,7 +60,37 @@ final class TypeMapperFactory
         private ConverterAnalyzer $converterAnalyzer,
         private KeyConverterHandler $keyConverterHandler,
         private Settings $settings,
+        /**
+         * The same type can be compiled twice with different settings, for
+         * instance when it is filled with the values of an HTTP request. The
+         * variant keeps the compiled methods of the two trees apart.
+         */
+        private ?string $variant = null,
     ) {}
+
+    /**
+     * The values of an HTTP request come from the outside of the application,
+     * so extra values can be added anytime and must never be reported. Its
+     * route and query values are always strings, so they need to be cast to the
+     * type of the element they fill.
+     */
+    public function forHttpRequest(): self
+    {
+        $settings = clone $this->settings;
+        $settings->allowSuperfluousKeys = true;
+        $settings->allowScalarValueCasting = true;
+
+        $self = clone $this;
+        $self->settings = $settings;
+        $self->variant = 'http-request';
+
+        return $self;
+    }
+
+    public function variant(): ?string
+    {
+        return $this->variant;
+    }
 
     public function dumpType(Type $type): string
     {
@@ -107,7 +138,7 @@ final class TypeMapperFactory
         }
 
         if ($allConverters !== []) {
-            $typeMapper = new ConverterTypeMapper($type, $typeMapper, $allConverters);
+            $typeMapper = new ConverterTypeMapper($type, $typeMapper, $allConverters, $this->variant);
         }
 
         // Wrap with key converter logic
@@ -116,10 +147,34 @@ final class TypeMapperFactory
                 $type,
                 $typeMapper,
                 $this->keyConverterHandler->keyConverterIndices(),
+                $this->variant,
             );
         }
 
+        // Wrap with HTTP request logic, so that a shaped array can be filled
+        // with the values of a request. A sealed type only: an unsealed one is
+        // rejected by the shaped array mapper itself.
+        if ($type instanceof ShapedArrayType && ! $type->isUnsealed()) {
+            $typeMapper = new HttpRequestTypeMapper($type, $typeMapper, $this->variant);
+        }
+
         return $typeMapper;
+    }
+
+    /**
+     * The arguments of an object are mapped through a shaped array that is not
+     * part of the type tree, so it cannot go through `for()`. It still needs to
+     * be filled with the values of an HTTP request.
+     */
+    public function forObjectArguments(ShapedArrayType $type): TypeMapper
+    {
+        $mapper = new ShapedArrayTypeMapper($type, $this->settings, $this->variant);
+
+        if ($type->isUnsealed()) {
+            return $mapper;
+        }
+
+        return new HttpRequestTypeMapper($type, $mapper, $this->variant);
     }
 
     private function resolveTypeMapper(Type $type): TypeMapper
@@ -159,6 +214,7 @@ final class TypeMapperFactory
                     $inferFunction,
                     $inferArguments,
                     $implementations,
+                    $this->variant,
                 );
             }
 
@@ -168,6 +224,7 @@ final class TypeMapperFactory
                     $class,
                     $this->objectBuilderFactory->for($class),
                     $this->settings,
+                    $this->variant,
                 );
             }
 
@@ -180,6 +237,7 @@ final class TypeMapperFactory
                 $class,
                 $this->objectBuilderFactory->for($class),
                 $this->settings,
+                $this->variant,
             );
         }
 
@@ -188,14 +246,14 @@ final class TypeMapperFactory
             $type instanceof NullType => new NullTypeMapper(),
             $type instanceof MixedType => new MixedTypeMapper($this->settings),
             $type instanceof UndefinedObjectType => new UndefinedObjectTypeMapper($this->settings),
-            $type instanceof UnionType => new UnionTypeMapper($type),
-            $type instanceof ShapedArrayType => new ShapedArrayTypeMapper($type, $this->settings),
-            $type instanceof ShapedListType => new ShapedListTypeMapper($type, $this->settings),
+            $type instanceof UnionType => new UnionTypeMapper($type, $this->variant),
+            $type instanceof ShapedArrayType => new ShapedArrayTypeMapper($type, $this->settings, $this->variant),
+            $type instanceof ShapedListType => new ShapedListTypeMapper($type, $this->settings, $this->variant),
             $type instanceof ListType,
-            $type instanceof NonEmptyListType => new ListTypeMapper($type, $this->settings),
+            $type instanceof NonEmptyListType => new ListTypeMapper($type, $this->settings, $this->variant),
             $type instanceof ArrayType,
             $type instanceof NonEmptyArrayType,
-            $type instanceof IterableType => new ArrayTypeMapper($type, $this->settings),
+            $type instanceof IterableType => new ArrayTypeMapper($type, $this->settings, $this->variant),
             default => throw new RuntimeException('Unsupported type for compiled mapper: ' . $type->toString()),
         };
     }

@@ -35,6 +35,12 @@ final class ShapedArrayTypeMapper implements TypeMapper
     public function __construct(
         private ShapedArrayType $type,
         private Settings $settings,
+        /**
+         * The same shaped array can be compiled twice with different settings,
+         * for instance when it is filled with the values of an HTTP request.
+         * The variant keeps the two compiled methods apart.
+         */
+        private ?string $variant = null,
     ) {}
 
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
@@ -381,6 +387,8 @@ final class ShapedArrayTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        return self::buildMethodName('map_shaped_array', $this->type->toString());
+        $typeString = $this->type->toString();
+
+        return self::buildMethodName('map_shaped_array', $typeString, $this->variantHashInput($typeString));
     }
 }

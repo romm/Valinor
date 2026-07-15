@@ -33,6 +33,7 @@ final class InterfaceTypeMapper implements TypeMapper
         private FunctionDefinition $inferFunction,
         private Arguments $inferArguments,
         private array $implementations,
+        private ?string $variant = null,
     ) {}
 
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
@@ -317,6 +318,6 @@ final class InterfaceTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        return self::buildMethodName('map_interface', $this->type->toString());
+        return self::buildMethodName('map_interface', $this->type->toString(), $this->variantHashInput($this->type->toString()));
     }
 }

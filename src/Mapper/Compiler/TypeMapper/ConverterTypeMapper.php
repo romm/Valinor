@@ -31,6 +31,7 @@ final class ConverterTypeMapper implements TypeMapper
         private Type $targetType,
         private TypeMapper $delegate,
         private array $matchingConverters,
+        private ?string $variant = null,
     ) {}
 
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
@@ -241,6 +242,10 @@ final class ConverterTypeMapper implements TypeMapper
                 $attrDef = $conv['attrDef'];
                 $hashInput .= '|a' . $attrDef->class->name . '|' . implode('|', $attrDef->reflectionParts) . '|' . $attrDef->attributeIndex;
             }
+        }
+
+        if ($this->variant !== null) {
+            $hashInput .= '|' . $this->variant;
         }
 
         return self::buildMethodName('convert_and_map', $this->targetType->toString(), $hashInput);

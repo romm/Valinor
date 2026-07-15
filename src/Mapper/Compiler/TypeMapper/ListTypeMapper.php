@@ -28,6 +28,7 @@ final class ListTypeMapper implements TypeMapper
     public function __construct(
         private ListType|NonEmptyListType $type,
         private Settings $settings,
+        private ?string $variant = null,
     ) {}
 
     public function buildMappingNodes(Node $value, Node $context, Node $target): array
@@ -249,6 +250,6 @@ final class ListTypeMapper implements TypeMapper
      */
     private function methodName(): string
     {
-        return self::buildMethodName('map_list', $this->type->toString());
+        return self::buildMethodName('map_list', $this->type->toString(), $this->variantHashInput($this->type->toString()));
     }
 }
