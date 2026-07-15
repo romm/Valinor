@@ -10,6 +10,8 @@ use CuyZ\Valinor\Library\Settings;
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
+use CuyZ\Valinor\Mapper\Http\HttpRequest;
+use CuyZ\Valinor\Mapper\Tree\Exception\CannotMapHttpRequestToUnsealedShapedArray;
 use CuyZ\Valinor\Mapper\Tree\Exception\CannotMapToPermissiveType;
 use CuyZ\Valinor\Mapper\Tree\Exception\MissingNodeValue;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceMustBeIterable;
@@ -62,6 +64,24 @@ final class ShapedArrayTypeMapper implements TypeMapper
         $dumpedType = $typeMapperFactory->dumpType($this->type);
 
         $body = [
+            // Handling HTTP requests
+            // ======================
+            //
+            // The values of an HTTP request are spread across its route, query
+            // and body, so there is no sensible way to know what the extra
+            // values of an unsealed shaped array should be filled with.
+            //
+            // if ($source instanceof HttpRequest) {
+            //     throw new CannotMapHttpRequestToUnsealedShapedArray();
+            // }
+            when(
+                condition: $this->type->isUnsealed(),
+                then: if_(
+                    condition: variable('source')->instanceOf(HttpRequest::class),
+                    then: throw_(newClass(CannotMapHttpRequestToUnsealedShapedArray::class))->asStatement(),
+                ),
+            ),
+
             // Handling null values
             // ====================
             //

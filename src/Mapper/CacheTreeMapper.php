@@ -46,7 +46,14 @@ final class CacheTreeMapper implements TreeMapper
         );
 
         if ($mapper) {
-            return $mapper->map($signature, $source);
+            try {
+                return $mapper->map($signature, $source);
+            } catch (MappingLogicalException $exception) {
+                // Some logical errors can only be detected once the source is
+                // known, and are therefore thrown by the compiled mapper. They
+                // are wrapped the same way the runtime mapper does.
+                throw new TypeErrorDuringMapping($this->typeParser->parse($signature), $exception);
+            }
         }
 
         try {
