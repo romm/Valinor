@@ -18,6 +18,7 @@ use CuyZ\Valinor\Mapper\Compiler\TypeMapper\NullTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ObjectTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ScalarTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ShapedArrayTypeMapper;
+use CuyZ\Valinor\Mapper\Compiler\TypeMapper\ShapedListTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\TypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\UndefinedObjectTypeMapper;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapper\UnionTypeMapper;
@@ -42,6 +43,7 @@ use CuyZ\Valinor\Type\Types\NonEmptyArrayType;
 use CuyZ\Valinor\Type\Types\NonEmptyListType;
 use CuyZ\Valinor\Type\Types\NullType;
 use CuyZ\Valinor\Type\Types\ShapedArrayType;
+use CuyZ\Valinor\Type\Types\ShapedListType;
 use CuyZ\Valinor\Type\Types\UndefinedObjectType;
 use CuyZ\Valinor\Type\Types\UnionType;
 use CuyZ\Valinor\Type\Types\UnresolvableType;
@@ -188,6 +190,7 @@ final class TypeMapperFactory
             $type instanceof UndefinedObjectType => new UndefinedObjectTypeMapper($this->settings),
             $type instanceof UnionType => new UnionTypeMapper($type),
             $type instanceof ShapedArrayType => new ShapedArrayTypeMapper($type, $this->settings),
+            $type instanceof ShapedListType => new ShapedListTypeMapper($type, $this->settings),
             $type instanceof ListType,
             $type instanceof NonEmptyListType => new ListTypeMapper($type, $this->settings),
             $type instanceof ArrayType,
