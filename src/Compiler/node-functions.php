@@ -242,6 +242,10 @@ function yield_(Node $key, Node $value): YieldNode
     return new YieldNode($key, $value);
 }
 
+/**
+ * @param Node|list<Node> $then
+ * @param Node|list<Node> $else
+ */
 function when(
     bool $condition,
     array|Node $then = [],

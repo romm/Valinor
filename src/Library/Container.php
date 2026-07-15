@@ -93,7 +93,7 @@ final class Container
                 if (isset($settings->cache)) {
                     return new CacheTreeMapper(
                         $this->get(TypeParser::class),
-                        new RuntimeCache($this->get(Cache::class)), // @phpstan-ignore argument.type
+                        new RuntimeCache($this->get(Cache::class)),
                         $this->get(TypeMapperFactory::class),
                         $this->computeFactoryCallbacks($settings),
                         $settings,

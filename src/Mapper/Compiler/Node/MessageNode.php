@@ -13,6 +13,7 @@ use CuyZ\Valinor\Mapper\Tree\Message\Message;
 
 use function CuyZ\Valinor\Compiler\{array_, newClass, value};
 
+/** @internal */
 final class MessageNode extends Node
 {
     public function __construct(

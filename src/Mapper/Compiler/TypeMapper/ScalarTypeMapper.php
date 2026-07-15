@@ -14,6 +14,7 @@ use CuyZ\Valinor\Type\ScalarType;
 
 use function CuyZ\Valinor\Compiler\{call, castTo, dumpValue, if_, logicalOr};
 
+/** @internal */
 final class ScalarTypeMapper implements TypeMapper
 {
     public function __construct(

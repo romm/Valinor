@@ -8,6 +8,7 @@ use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
 use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 
+/** @internal */
 interface TypeMapper
 {
     /**

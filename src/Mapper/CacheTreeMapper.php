@@ -20,6 +20,7 @@ use CuyZ\Valinor\Type\Type;
 
 use function CuyZ\Valinor\Compiler\{param, shortClosure};
 
+/** @internal */
 final class CacheTreeMapper implements TreeMapper
 {
     public function __construct(
@@ -68,7 +69,7 @@ final class CacheTreeMapper implements TreeMapper
             throw new TypeErrorDuringMapping($type, $exception);
         }
 
-        // @phpstan-ignore argument.type (this is a temporary workaround, while waiting for the cache API to be refined)
+        // This is a temporary workaround, while waiting for the cache API to be refined.
         $this->cache->set($key, $cacheEntry);
 
         return $this->map($signature, $source);

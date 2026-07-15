@@ -229,6 +229,10 @@ final class UnionTypeMapper implements TypeMapper
         );
     }
 
+    /**
+     * @param non-empty-string $methodName
+     * @param list<Node> $nodes
+     */
     private function buildUnresolvableMethod(
         AnonymousClassNode $class,
         string $methodName,

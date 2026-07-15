@@ -14,6 +14,7 @@ use CuyZ\Valinor\Type\Type;
 
 use function CuyZ\Valinor\Compiler\{anonymousClass, if_, newClass, param, property, return_, this, throw_, value, variable};
 
+/** @internal */
 final class TreeMapperRootNode extends Node
 {
     public function __construct(

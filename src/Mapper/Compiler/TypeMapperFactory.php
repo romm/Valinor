@@ -50,6 +50,7 @@ use CuyZ\Valinor\Type\Types\UnionType;
 use CuyZ\Valinor\Type\Types\UnresolvableType;
 use RuntimeException;
 
+/** @internal */
 final class TypeMapperFactory
 {
     public function __construct(
@@ -211,7 +212,6 @@ final class TypeMapperFactory
 
                 return new InterfaceTypeMapper(
                     $type,
-                    $inferFunction,
                     $inferArguments,
                     $implementations,
                     $this->variant,

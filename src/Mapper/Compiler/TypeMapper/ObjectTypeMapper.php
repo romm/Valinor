@@ -32,6 +32,7 @@ use function array_merge;
 use function count;
 use function CuyZ\Valinor\Compiler\{array_, call, dumpValue, if_, negate, param, return_, this, try_, value, variable};
 
+/** @internal */
 final class ObjectTypeMapper implements TypeMapper
 {
     use TypeMapperMethodName;

@@ -36,7 +36,7 @@ final class MappingContext
     public function __construct(
         public readonly string $name = '',
         public readonly string $path = '*root*',
-        /** @var ArrayObject<NodeMessage> */
+        /** @var ArrayObject<int, NodeMessage> */
         public readonly ArrayObject $messages = new ArrayObject(),
     ) {}
 

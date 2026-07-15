@@ -25,7 +25,7 @@ final class KeyConverterTypeMapper implements TypeMapper
     public function __construct(
         private Type $type,
         private TypeMapper $delegate,
-        /** @list<int> */
+        /** @var list<int> */
         private array $keyConverterIndices,
         private ?string $variant = null,
     ) {}

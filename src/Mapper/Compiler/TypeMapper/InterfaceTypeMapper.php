@@ -6,7 +6,6 @@ namespace CuyZ\Valinor\Mapper\Compiler\TypeMapper;
 
 use CuyZ\Valinor\Compiler\Native\AnonymousClassNode;
 use CuyZ\Valinor\Compiler\Node;
-use CuyZ\Valinor\Definition\FunctionDefinition;
 
 use CuyZ\Valinor\Mapper\Compiler\MappingContext;
 use CuyZ\Valinor\Mapper\Compiler\Node\AddMessageNode;
@@ -14,6 +13,7 @@ use CuyZ\Valinor\Mapper\Compiler\TypeMapperFactory;
 use CuyZ\Valinor\Mapper\Object\Arguments;
 use CuyZ\Valinor\Mapper\Tree\Exception\ObjectImplementationNotRegistered;
 use CuyZ\Valinor\Mapper\Tree\Exception\SourceMustBeIterable;
+use CuyZ\Valinor\Type\ClassType;
 use CuyZ\Valinor\Type\ObjectType;
 use Exception;
 
@@ -30,7 +30,6 @@ final class InterfaceTypeMapper implements TypeMapper
      */
     public function __construct(
         private ObjectType $type,
-        private FunctionDefinition $inferFunction,
         private Arguments $inferArguments,
         private array $implementations,
         private ?string $variant = null,
@@ -87,7 +86,7 @@ final class InterfaceTypeMapper implements TypeMapper
         // Dispatch to the correct implementation using if-chain
         $nodes[] = variable('result')->assign(value(null))->asStatement();
 
-        foreach ($implMappers as $className => $implMapper) {
+        foreach ($implMappers as $implClassName => $implMapper) {
             $formatNodes = $implMapper->buildMappingNodes(
                 variable('source'),
                 variable('context'),
@@ -95,7 +94,7 @@ final class InterfaceTypeMapper implements TypeMapper
             );
 
             $nodes[] = if_(
-                condition: variable('className')->equals(value($className)),
+                condition: variable('className')->equals(value($implClassName)),
                 then: [...$formatNodes, return_(variable('result'))],
             );
         }
