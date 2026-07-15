@@ -3,10 +3,6 @@
 This library is framework-agnostic, but using it in an application that relies
 on a framework is still possible.
 
-For Symfony applications, check out the [chapter below](#symfony-bundle). For
-other frameworks, check out the [custom integration
-chapter](#custom-integration).
-
 ## Symfony bundle
 
 A bundle is available to automatically integrate this library into a Symfony
@@ -18,6 +14,18 @@ composer require cuyz/valinor-bundle
 
 The documentation of this bundle can be found
 [on the GitHub repository](https://github.com/CuyZ/Valinor-Bundle/#readme).
+
+## Mezzio integration
+
+An official integration with Laminas' Mezzio framework allows this library to be
+used to very easily map HTTP requests to domain objects.
+
+```bash
+composer require mezzio/mezzio-valinor
+```
+
+The documentation of this package can be found at
+https://docs.mezzio.dev/mezzio-valinor/
 
 ## Custom integration
 
@@ -47,6 +55,37 @@ $jsonNormalizer = $normalizerBuilder->normalizer(\CuyZ\Valinor\Normalizer\Format
 $container->addSharedService('mapper', $mapper);
 $container->addSharedService('normalizer_json', $jsonNormalizer);
 ```
+
+### HTTP request mapping
+
+The library can [map HTTP requests] to controller action parameters using the
+arguments mapper. An integration should wire this into the framework's routing
+layer so that controller arguments are resolved automatically.
+
+The general approach is:
+
+1. Build an `HttpRequest` from the framework's native request object,
+2. Use the arguments mapper to resolve the controller's parameters,
+3. Call the controller with the resolved arguments.
+
+```php
+use CuyZ\Valinor\Mapper\Http\HttpRequest;
+
+// In a controller argument resolver / middleware:
+$argumentsMapper = $mapperBuilder->argumentsMapper();
+
+// Build an `HttpRequest` from the framework's request and router output.
+// If the framework uses PSR-7, the factory method can be used directly:
+$request = HttpRequest::fromPsr($psrRequest, $routeParameters);
+
+// Resolve the controller's parameters
+$arguments = $argumentsMapper->mapArguments($controller, $request);
+
+// Call the controller
+$response = $controller(...$arguments);
+```
+
+[map HTTP requests]: ../how-to/map-http-request.md
 
 ### Registering a cache
 

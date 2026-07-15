@@ -191,7 +191,7 @@ final class ShapedArrayTypeMapper implements TypeMapper
             // generator is used to both yield nodes and mutate `$class`
             // (registering the unsealed value mapper method).
             ...(function () use ($typeMapperFactory, &$class, $dumpedType) {
-                if ($this->type->isUnsealed) {
+                if ($this->type->isUnsealed()) {
                     $unsealedType = $this->type->unsealedType();
 
                     // Check for permissive types in unsealed portion — generate runtime check

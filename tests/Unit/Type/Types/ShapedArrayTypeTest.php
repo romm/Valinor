@@ -45,11 +45,11 @@ final class ShapedArrayTypeTest extends UnitTestCase
             1337 => new ShapedArrayElement(new IntegerValueType(1337), new NativeIntegerType(), true),
         ];
         $this->unsealedType = new ArrayType(
-            new ArrayKeyType([StringValueType::from("'unsealed-key'")]),
+            new ArrayKeyType([StringValueType::quoted("'unsealed-key'")]),
             new NativeFloatType(),
         );
 
-        $this->type = new ShapedArrayType(elements: $this->elements, isUnsealed: true, unsealedType: $this->unsealedType);
+        $this->type = new ShapedArrayType(elements: $this->elements, unsealedType: $this->unsealedType);
     }
 
     public function test_shape_properties_can_be_retrieved(): void
@@ -68,7 +68,6 @@ final class ShapedArrayTypeTest extends UnitTestCase
                 new ShapedArrayElement(new IntegerValueType(42), new NativeStringType()),
                 new ShapedArrayElement(new IntegerValueType(42), new NativeStringType()),
             ],
-            isUnsealed: false,
         );
     }
 
@@ -113,7 +112,6 @@ final class ShapedArrayTypeTest extends UnitTestCase
     {
         $type = ShapedArrayType::from(
             elements: [new ShapedArrayElement(new StringValueType('foo'), new NativeStringType())],
-            isUnsealed: true,
             unsealedType: new GenericType('T', new NativeStringType()),
         );
 
@@ -128,7 +126,6 @@ final class ShapedArrayTypeTest extends UnitTestCase
                 new ShapedArrayElement(new StringValueType('foo'), new NativeStringType()),
                 new ShapedArrayElement(new IntegerValueType(1337), new NativeIntegerType()),
             ],
-            isUnsealed: true,
             unsealedType: new ArrayType(ArrayKeyType::string(), new NativeFloatType()),
         );
 
@@ -136,13 +133,11 @@ final class ShapedArrayTypeTest extends UnitTestCase
             elements: [
                 new ShapedArrayElement(new StringValueType('foo'), new NativeStringType()),
             ],
-            isUnsealed: true,
             unsealedType: new ArrayType(ArrayKeyType::string(), new NativeFloatType()),
         );
 
         $otherC = ShapedArrayType::from(
             [new ShapedArrayElement(new StringValueType('foo'), new NativeStringType())],
-            isUnsealed: true,
         );
 
         self::assertTrue($this->type->matches($otherA));
@@ -156,14 +151,12 @@ final class ShapedArrayTypeTest extends UnitTestCase
             elements: [
                 new ShapedArrayElement(new IntegerValueType(42), new NativeStringType()),
             ],
-            isUnsealed: true,
         );
 
         $shapedArray = ShapedArrayType::from(
             elements: [
                 new ShapedArrayElement(new IntegerValueType(42), new NativeStringType()),
             ],
-            isUnsealed: false,
         );
 
         self::assertTrue($unsealedShapedArray->matches($shapedArray));
@@ -177,9 +170,8 @@ final class ShapedArrayTypeTest extends UnitTestCase
                 'bar' => new ShapedArrayElement(new StringValueType('bar'), new NativeStringType()),
                 1337 => new ShapedArrayElement(new IntegerValueType(1337), new NativeIntegerType(), true),
             ],
-            isUnsealed: true,
             unsealedType: new ArrayType(
-                new ArrayKeyType([StringValueType::from("'unsealed-key'")]),
+                new ArrayKeyType([StringValueType::quoted("'unsealed-key'")]),
                 new NativeFloatType(),
             ),
         );
@@ -190,35 +182,30 @@ final class ShapedArrayTypeTest extends UnitTestCase
                 new ShapedArrayElement(new StringValueType('foo'), new NativeStringType()), // valid
                 new ShapedArrayElement(new IntegerValueType(1337), new NativeFloatType()), // invalid
             ],
-            isUnsealed: true,
             unsealedType: new ArrayType(ArrayKeyType::string(), new NativeFloatType()),
         );
 
         // Valid unsealed type, invalid shaped array element key
         $otherB = ShapedArrayType::from(
             elements: [new ShapedArrayElement(new StringValueType('bar'), new NativeStringType())],
-            isUnsealed: true,
             unsealedType: new ArrayType(ArrayKeyType::string(), new NativeFloatType()),
         );
 
         // Valid unsealed type, missing required element
         $otherC = ShapedArrayType::from(
             elements: [],
-            isUnsealed: true,
             unsealedType: new ArrayType(ArrayKeyType::string(), new NativeFloatType()),
         );
 
         // Invalid unsealed type, valid shaped array element
         $otherD = ShapedArrayType::from(
             elements: [new ShapedArrayElement(new StringValueType('foo'), new NativeStringType())],
-            isUnsealed: true,
             unsealedType: new ArrayType(ArrayKeyType::string(), new NativeStringType()),
         );
 
         // Invalid unsealed type key, valid shaped array element
         $otherE = ShapedArrayType::from(
             elements: [new ShapedArrayElement(new StringValueType('foo'), new NativeStringType())],
-            isUnsealed: true,
             unsealedType: new ArrayType(ArrayKeyType::integer(), new NativeFloatType()),
         );
 
@@ -279,7 +266,6 @@ final class ShapedArrayTypeTest extends UnitTestCase
             new FakeType(),
             ShapedArrayType::from(
                 elements: [new ShapedArrayElement(new StringValueType('bar'), new NativeStringType())],
-                isUnsealed: true,
                 unsealedType: new ArrayType(ArrayKeyType::integer(), new NonEmptyStringType()),
             ),
             new FakeType(),
@@ -294,7 +280,6 @@ final class ShapedArrayTypeTest extends UnitTestCase
             new FakeType(),
             ShapedArrayType::from(
                 elements: [new ShapedArrayElement(new StringValueType('foo'), new NativeStringType())],
-                isUnsealed: true,
                 unsealedType: new ArrayType(ArrayKeyType::string(), new NativeStringType()),
             ),
             new FakeType(),
@@ -314,7 +299,6 @@ final class ShapedArrayTypeTest extends UnitTestCase
                 new ShapedArrayElement(new StringValueType('foo'), $subTypeA),
                 new ShapedArrayElement(new StringValueType('bar'), $subTypeB),
             ],
-            isUnsealed: true,
             unsealedType: $unsealedType,
         );
 
@@ -338,7 +322,6 @@ final class ShapedArrayTypeTest extends UnitTestCase
                     new ShapedArrayElement(new IntegerValueType(42), new NativeIntegerType()),
                     new ShapedArrayElement(new StringValueType('foo'), new NativeStringType()),
                 ],
-                isUnsealed: true,
                 unsealedType: ArrayType::native(),
             )->nativeType()->toString(),
         );
